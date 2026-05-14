@@ -97,3 +97,36 @@ DEEPSEEK_RESEARCH_AGENT_DIR=他的_agent_项目路径
 ```text
 Use $deepseek-research-agent to research: 你的研究问题
 ```
+
+## 作为 Codex Plugin 安装
+
+仓库也内置了一个本地插件：
+
+```text
+plugins/deepseek-research-agent
+```
+
+如果对方的 Codex 支持从本地 marketplace 导入插件，可以使用：
+
+```text
+.agents/plugins/marketplace.json
+```
+
+其中插件入口指向：
+
+```text
+./plugins/deepseek-research-agent
+```
+
+安装后，插件会提供同名 Skill：
+
+```text
+deepseek-research-agent
+```
+
+使用前仍需要在 Agent 项目中配置自己的 `.env`：
+
+```env
+DEEPSEEK_API_KEY=他的_deepseek_key
+DEEPSEEK_MODEL=deepseek-v4-pro
+```

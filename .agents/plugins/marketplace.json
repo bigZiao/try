@@ -1,0 +1,20 @@
+{
+  "name": "bigziao-local-plugins",
+  "interface": {
+    "displayName": "bigZiao Local Plugins"
+  },
+  "plugins": [
+    {
+      "name": "deepseek-research-agent",
+      "source": {
+        "source": "local",
+        "path": "./plugins/deepseek-research-agent"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

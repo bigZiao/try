@@ -1,0 +1,36 @@
+{
+  "name": "deepseek-research-agent",
+  "version": "0.1.0",
+  "description": "A portable Codex plugin that installs a DeepSeek-only research agent skill.",
+  "author": {
+    "name": "bigZiao",
+    "url": "https://github.com/bigZiao"
+  },
+  "homepage": "https://github.com/bigZiao/try",
+  "repository": "https://github.com/bigZiao/try",
+  "license": "MIT",
+  "keywords": [
+    "deepseek",
+    "research",
+    "agent",
+    "codex-skill"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "DeepSeek Research Agent",
+    "shortDescription": "Run local DeepSeek research reports",
+    "longDescription": "Install a Codex skill that runs a local DeepSeek-only Python research agent, generates evidence cards, and saves a Markdown report. It does not call Tavily or live web search.",
+    "developerName": "bigZiao",
+    "category": "Productivity",
+    "capabilities": [
+      "Research",
+      "Reports",
+      "Local automation"
+    ],
+    "websiteURL": "https://github.com/bigZiao/try",
+    "defaultPrompt": [
+      "Use $deepseek-research-agent to research: AI Agent 在企业知识库场景是否值得落地？"
+    ],
+    "brandColor": "#2563EB"
+  }
+}

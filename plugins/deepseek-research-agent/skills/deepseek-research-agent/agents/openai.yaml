@@ -1,0 +1,7 @@
+interface:
+  display_name: "DeepSeek Research Agent"
+  short_description: "Run local DeepSeek research reports"
+  default_prompt: "Use $deepseek-research-agent to research: "
+
+policy:
+  allow_implicit_invocation: true
