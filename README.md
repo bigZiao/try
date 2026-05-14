@@ -64,3 +64,36 @@ outputs/report.md
 - 来源列表
 
 每条关键证据都会包含来源标题、URL、摘要和可信度评分。
+
+## 作为 Codex Skill 使用
+
+仓库内置了一个通用 Skill：
+
+```text
+skills/deepseek-research-agent
+```
+
+别人下载后可以把这个目录复制到自己的 Codex skills 目录，例如：
+
+```text
+C:\Users\他的用户名\.codex\skills\deepseek-research-agent
+```
+
+然后在自己的 `.env` 中配置：
+
+```env
+DEEPSEEK_API_KEY=他的_deepseek_key
+DEEPSEEK_MODEL=deepseek-v4-pro
+```
+
+如果 Agent 项目不在当前工作目录，可以额外配置：
+
+```env
+DEEPSEEK_RESEARCH_AGENT_DIR=他的_agent_项目路径
+```
+
+之后可以在 Codex 里说：
+
+```text
+Use $deepseek-research-agent to research: 你的研究问题
+```
