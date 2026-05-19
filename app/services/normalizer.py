@@ -24,9 +24,11 @@ class ReceiptNormalizer:
             return item
 
         normalized = dict(item)
-        self._copy_first(normalized, "style_no", ["style_code", "sku_id", "sku_code", "item_code", "item_no", "product_code", "style_number", "spu_id"])
-        self._copy_first(normalized, "product_name", ["name", "sku_name", "item_name", "product_title", "goods_name"])
+        self._copy_first(normalized, "style_no", ["style_code", "sku_id", "sku_code", "item_code", "item_no", "product_code", "style_number", "spu_id", "goods_code"])
+        self._copy_first(normalized, "product_name", ["name", "sku_name", "spu_name", "item_name", "product_title", "goods_name"])
+        self._copy_first(normalized, "quantity", ["total_quantity", "qty"])
         self._copy_first(normalized, "subtotal", ["total_price", "amount", "line_amount"])
+        self._normalize_sizes(normalized)
         if normalized.get("sizes") and self._is_aggregate_size(normalized.get("size")):
             normalized["size"] = None
         normalized.setdefault("block_indexes", [])
@@ -45,3 +47,19 @@ class ReceiptNormalizer:
             return False
         text = str(value).strip()
         return "/" in text or "\\" in text or "," in text or "，" in text
+
+    def _normalize_sizes(self, item: dict[str, Any]) -> None:
+        sizes = item.get("sizes")
+        if not isinstance(sizes, list):
+            return
+
+        normalized_sizes = []
+        for size_item in sizes:
+            if not isinstance(size_item, dict):
+                normalized_sizes.append(size_item)
+                continue
+
+            normalized = dict(size_item)
+            self._copy_first(normalized, "quantity", ["count", "qty", "num"])
+            normalized_sizes.append(normalized)
+        item["sizes"] = normalized_sizes

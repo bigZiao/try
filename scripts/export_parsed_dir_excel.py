@@ -125,7 +125,7 @@ def main() -> None:
                         get_value(data, "merchant_name", "商家", "店铺"),
                         normalize_date(get_value(data, "order_date", "日期")),
                         get_value(data, "customer_name", "客户", "客户名称"),
-                        get_value(item, "style_no", "style_code", "sku_code", "item_code", "item_no", "product_code", "style_number", "款号"),
+                        get_value(item, "style_no", "style_code", "sku_id", "sku_code", "item_code", "item_no", "product_code", "style_number", "spu_id", "goods_code", "款号"),
                         get_value(item, "product_name", "name", "item_name", "product_title", "goods_name", "名称", "商品名称"),
                         get_value(item, "color", "color_name", "颜色"),
                         size_name,
@@ -145,11 +145,11 @@ def main() -> None:
                 [
                     file_path.name,
                     index,
-                    get_value(item, "style_no", "style_code", "sku_code", "item_code", "item_no", "product_code", "style_number", "款号"),
+                    get_value(item, "style_no", "style_code", "sku_id", "sku_code", "item_code", "item_no", "product_code", "style_number", "spu_id", "goods_code", "款号"),
                     get_value(item, "product_name", "name", "item_name", "product_title", "goods_name", "名称", "商品名称"),
                     get_value(item, "color", "color_name", "颜色"),
                     normalize_size(get_value(item, "size", "size_name", "尺码")),
-                    get_value(item, "quantity", "total_quantity", "数量"),
+                    get_value(item, "quantity", "total_quantity", "qty", "数量"),
                     get_value(item, "unit_price", "单价"),
                     get_value(item, "subtotal", "amount", "小计", "金额"),
                     compact(get_value(item, "block_indexes")),
@@ -237,7 +237,7 @@ def expand_size_rows(item: dict[str, Any]) -> list[tuple[Any, Any]]:
             if not isinstance(size_item, dict):
                 continue
             size_name = normalize_size(get_value(size_item, "size_name", "size", "尺码"))
-            quantity = get_value(size_item, "quantity", "数量")
+            quantity = get_value(size_item, "quantity", "count", "qty", "num", "数量")
             if size_name and to_number(quantity):
                 rows.append((size_name, quantity))
         if rows:
@@ -246,7 +246,7 @@ def expand_size_rows(item: dict[str, Any]) -> list[tuple[Any, Any]]:
     return [
         (
             normalize_size(get_value(item, "size", "size_name", "尺码")),
-            get_value(item, "quantity", "total_quantity", "数量"),
+            get_value(item, "quantity", "total_quantity", "qty", "数量"),
         )
     ]
 
