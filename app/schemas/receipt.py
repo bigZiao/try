@@ -57,8 +57,13 @@ class ReceiptResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_id: int
+    batch_id: int | None = None
     original_filename: str
     image_path: str
+    image_sha256: str
+    duplicate_of_receipt_id: int | None = None
+    duplicate_status: str
     status: str
     ocr_json: dict[str, Any] | None = None
     structured_json: dict[str, Any] | None = None
@@ -68,3 +73,25 @@ class ReceiptResponse(BaseModel):
     note: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class BatchReceiptUploadResult(BaseModel):
+    receipt_id: int
+    filename: str
+    status: str
+    duplicate: bool = False
+    duplicate_of_receipt_id: int | None = None
+
+
+class ReceiptBatchResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    title: str | None = None
+    status: str
+    note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    receipts: list[BatchReceiptUploadResult] = Field(default_factory=list)
+    counts: dict[str, int] = Field(default_factory=dict)

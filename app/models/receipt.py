@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, JSON, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -8,10 +8,18 @@ from app.core.database import Base
 
 class Receipt(Base):
     __tablename__ = "receipts"
+    __table_args__ = (
+        UniqueConstraint("user_id", "image_sha256", name="uq_receipts_user_image_sha256"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True, default=1)
+    batch_id: Mapped[int | None] = mapped_column(ForeignKey("receipt_batches.id"), nullable=True, index=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     image_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    image_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    duplicate_of_receipt_id: Mapped[int | None] = mapped_column(ForeignKey("receipts.id"), nullable=True)
+    duplicate_status: Mapped[str] = mapped_column(String(50), nullable=False, default="unique", index=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="uploaded", index=True)
 
     ocr_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

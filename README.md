@@ -38,12 +38,38 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 
 ## Main APIs
 
-- `POST /api/v1/receipts` upload image and run full pipeline
+- `POST /api/v1/receipts` upload one image, create a receipt task, and process it in the background
 - `GET /api/v1/receipts/{receipt_id}` get saved pipeline data
 - `POST /api/v1/receipts/{receipt_id}/confirm` submit final confirmed JSON
+- `POST /api/v1/receipts/{receipt_id}/vision-rerun` rerun a difficult receipt with image + OCR vision parsing
 - `GET /api/v1/receipts/{receipt_id}/export.xlsx` export one receipt
 - `GET /api/v1/receipts/export.xlsx` export all confirmed/reviewable receipts
+- `POST /api/v1/batches` upload multiple images as one batch
+- `GET /api/v1/batches/{batch_id}` get batch progress and receipt statuses
+- `GET /api/v1/batches/{batch_id}/export.xlsx` export one batch
 - `GET /health`
+
+All receipt and batch APIs accept `X-User-Id`; it defaults to `1` for local MVP testing. The production mini-program should set it from the logged-in owner account.
+
+## Mini-Program Batch Flow
+
+```text
+Owner uploads multiple receipt photos
+-> backend saves images and creates a receipt batch
+-> exact duplicate images are detected with user_id + image_sha256
+-> new receipts are processed in background tasks
+-> mini-program polls GET /api/v1/batches/{batch_id}
+-> owner reviews or confirms receipts
+-> export batch Excel
+```
+
+Core tables:
+
+- `users`: owner accounts.
+- `receipt_batches`: one multi-image upload batch.
+- `receipts`: one receipt image and the full OCR/LLM/rule pipeline data.
+- `receipt_items`: structured item rows synced from confirmed or review-ready JSON.
+- `receipt_runs`: rerun records for difficult receipts.
 
 ## DeepSeek
 

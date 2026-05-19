@@ -214,7 +214,9 @@ def get_llm_adapter() -> LLMAdapter:
     settings = get_settings()
     provider = settings.llm_provider.lower()
     model = settings.llm_model.lower()
-    if provider == "deepseek" or model.startswith("deepseek"):
+    if provider == "mock":
+        return MockLLMAdapter()
+    if provider == "deepseek" or (provider in {"", "auto"} and model.startswith("deepseek")):
         return DeepSeekLLMAdapter()
     if provider in {"http", "real"}:
         return HttpLLMAdapter()
