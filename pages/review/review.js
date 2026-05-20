@@ -10,6 +10,10 @@ Page({
     keyImageUrl: '',
     reviewImageUrl: '',
     reviewImageLabel: '',
+    ocrOverlay: null,
+    ocrBlocks: [],
+    showOcrOverlay: false,
+    ocrOverlayLoading: false,
     form: fmt.normalizeFormSource({}),
     previewItems: [],
     initialItemCount: 0,
@@ -57,18 +61,21 @@ Page({
       let reviewImageLabel = ''
       let hasImage = receipt.source_type !== 'manual'
       if (hasImage) {
+        const keyImageVersion = Date.now()
         try {
-          keyImageUrl = await api.downloadReceiptKeyImage(this.data.receiptId)
+          keyImageUrl = await api.downloadReceiptKeyImage(this.data.receiptId, keyImageVersion)
           reviewImageUrl = keyImageUrl
           reviewImageLabel = '关键区域图'
         } catch (ignore) {
           keyImageUrl = ''
+          this.setData({ ocrOverlay: null, ocrBlocks: [] })
         }
         try {
           imageUrl = await api.downloadReceiptImage(this.data.receiptId)
           if (!reviewImageUrl) {
             reviewImageUrl = imageUrl
             reviewImageLabel = '完整原图'
+            this.setData({ ocrOverlay: null, ocrBlocks: [] })
           }
         } catch (ignore) {
           if (!reviewImageUrl) hasImage = false
@@ -80,6 +87,10 @@ Page({
         keyImageUrl,
         reviewImageUrl,
         reviewImageLabel,
+        ocrOverlay: null,
+        ocrBlocks: [],
+        showOcrOverlay: false,
+        ocrOverlayLoading: false,
         hasImage,
         form,
         previewItems: this.buildPreviewItems(form.items),
@@ -96,6 +107,79 @@ Page({
       wx.showModal({
         title: '加载失败',
         content: error.message || '请确认后端服务已启动。',
+        showCancel: false
+      })
+    }
+  },
+
+  onReviewImageLoad() {
+    if (this.data.showOcrOverlay) {
+      this.updateOcrBlocks()
+    }
+  },
+
+  updateOcrBlocks() {
+    const overlay = this.data.ocrOverlay
+    if (!this.data.showOcrOverlay || !overlay || !overlay.image_width || !Array.isArray(overlay.blocks) || !this.data.keyImageUrl || this.data.reviewImageUrl !== this.data.keyImageUrl) {
+      this.setData({ ocrBlocks: [] })
+      return
+    }
+    wx.createSelectorQuery()
+      .in(this)
+      .select('.key-image-frame')
+      .boundingClientRect((rect) => {
+        if (!rect || !rect.width) return
+        const scale = rect.width / overlay.image_width
+        const blocks = overlay.blocks.map((block) => ({
+          ...block,
+          style: [
+            `left:${Math.round((block.left || 0) * scale)}px`,
+            `top:${Math.round((block.top || 0) * scale)}px`,
+            `width:${Math.round((block.width || 0) * scale)}px`,
+            `height:${Math.round((block.height || 0) * scale)}px`
+          ].join(';')
+        }))
+        this.setData({ ocrBlocks: blocks })
+      })
+      .exec()
+  },
+
+  async toggleOcrOverlay() {
+    if (!this.data.keyImageUrl || this.data.reviewImageUrl !== this.data.keyImageUrl) {
+      wx.showToast({ title: '暂无关键图', icon: 'none' })
+      return
+    }
+    if (this.data.showOcrOverlay) {
+      this.setData({
+        showOcrOverlay: false,
+        ocrBlocks: []
+      })
+      return
+    }
+    if (this.data.ocrOverlay) {
+      this.setData({ showOcrOverlay: true })
+      this.updateOcrBlocks()
+      return
+    }
+    this.setData({ ocrOverlayLoading: true })
+    try {
+      const ocrOverlay = await api.getOcrOverlay(this.data.receiptId, 'key')
+      this.setData({
+        ocrOverlay,
+        showOcrOverlay: true,
+        ocrOverlayLoading: false
+      })
+      this.updateOcrBlocks()
+    } catch (error) {
+      this.setData({
+        ocrOverlay: null,
+        ocrBlocks: [],
+        showOcrOverlay: false,
+        ocrOverlayLoading: false
+      })
+      wx.showModal({
+        title: '加载失败',
+        content: error.message || '暂时无法加载 OCR 位置。',
         showCancel: false
       })
     }

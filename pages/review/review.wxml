@@ -22,9 +22,17 @@
     <view class="compare-layout">
       <view class="key-image-panel">
         <view class="compare-subtitle">{{reviewImageLabel || '关键区域图'}}</view>
-        <image wx:if="{{reviewImageUrl}}" class="key-image" src="{{reviewImageUrl}}" mode="widthFix" bindtap="previewKeyImage" />
+        <view wx:if="{{reviewImageUrl}}" class="key-image-frame">
+          <image class="key-image" src="{{reviewImageUrl}}" mode="widthFix" bindload="onReviewImageLoad" bindtap="previewKeyImage" />
+          <view wx:for="{{ocrBlocks}}" wx:key="block_index" class="ocr-block ocr-{{item.role}}" style="{{item.style}}">
+            <text>{{item.text}}</text>
+          </view>
+        </view>
         <view wx:else class="empty key-empty">暂无图片。</view>
-        <button wx:if="{{imageUrl}}" class="btn btn-plain full-image-btn" bindtap="previewOriginal">查看完整原图</button>
+        <view class="image-actions">
+          <button wx:if="{{keyImageUrl && reviewImageUrl === keyImageUrl}}" class="btn btn-plain image-action-btn" loading="{{ocrOverlayLoading}}" disabled="{{ocrOverlayLoading}}" bindtap="toggleOcrOverlay">{{showOcrOverlay ? '隐藏OCR框' : '显示OCR框'}}</button>
+          <button wx:if="{{imageUrl}}" class="btn btn-plain image-action-btn" bindtap="previewOriginal">查看完整原图</button>
+        </view>
       </view>
       <view class="items-panel">
         <view class="compare-subtitle">商品明细</view>

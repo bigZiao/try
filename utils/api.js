@@ -368,6 +368,10 @@ function getReceipt(receiptId) {
   return request({ url: `/api/v1/receipts/${receiptId}` })
 }
 
+function getOcrOverlay(receiptId, view) {
+  return request({ url: `/api/v1/receipts/${receiptId}/ocr-overlay?view=${encodeURIComponent(view || 'key')}` })
+}
+
 function updateReviewFields(receiptId, fields, summary) {
   return request({
     url: `/api/v1/receipts/${receiptId}/review-fields`,
@@ -423,8 +427,9 @@ function receiptImageUrl(receiptId) {
   return `${baseUrl()}/api/v1/receipts/${receiptId}/image`
 }
 
-function receiptKeyImageUrl(receiptId) {
-  return `${baseUrl()}/api/v1/receipts/${receiptId}/key-image`
+function receiptKeyImageUrl(receiptId, cacheBust) {
+  const suffix = cacheBust ? `?t=${encodeURIComponent(cacheBust)}` : ''
+  return `${baseUrl()}/api/v1/receipts/${receiptId}/key-image${suffix}`
 }
 
 function downloadImageUrl(url, label) {
@@ -452,8 +457,8 @@ function downloadReceiptImage(receiptId) {
   return downloadImageUrl(receiptImageUrl(receiptId), '原图')
 }
 
-function downloadReceiptKeyImage(receiptId) {
-  return downloadImageUrl(receiptKeyImageUrl(receiptId), '关键区域图')
+function downloadReceiptKeyImage(receiptId, cacheBust) {
+  return downloadImageUrl(receiptKeyImageUrl(receiptId, cacheBust || Date.now()), '关键区域图')
 }
 
 function exportBatch(batchId) {
@@ -579,6 +584,7 @@ module.exports = {
   listReceipts,
   deleteReceipt,
   getReceipt,
+  getOcrOverlay,
   updateReviewFields,
   addReviewItem,
   updateReviewItem,
