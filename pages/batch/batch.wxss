@@ -1,0 +1,65 @@
+.count-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12rpx;
+  margin: 24rpx 0;
+}
+
+.count-item {
+  min-height: 104rpx;
+  padding: 14rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.count-value {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #0f2f2a;
+}
+
+.action-row {
+  margin-top: 16rpx;
+}
+
+.progress-wrap {
+  margin-top: 24rpx;
+}
+
+.progress-text {
+  color: #0f2f2a;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.receipt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.receipt-card {
+  padding: 20rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.receipt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #17201d;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.receipt-meta {
+  margin-top: 14rpx;
+  color: #6a7773;
+  font-size: 24rpx;
+}

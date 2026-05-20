@@ -1,0 +1,107 @@
+<view class="page">
+  <view class="section">
+    <view class="row-between">
+      <view>
+        <view class="section-title">票据 #{{receiptId}}</view>
+        <view class="muted">{{receipt.original_filename || '加载中'}}</view>
+      </view>
+      <text class="badge badge-{{statusTone}}">{{statusText}}</text>
+    </view>
+    <view wx:if="{{receipt.note}}" class="error-box">{{receipt.note}}</view>
+    <view wx:if="{{validationErrors.length}}" class="error-box">
+      <view wx:for="{{validationErrors}}" wx:key="index">{{item}}</view>
+    </view>
+    <view class="row action-row">
+      <button class="btn btn-secondary" loading="{{loading}}" bindtap="loadReceipt">刷新</button>
+      <button class="btn btn-danger" loading="{{retrying}}" disabled="{{retrying || isLocked || receipt.duplicate_status !== 'unique'}}" bindtap="retry">重试</button>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">原图</view>
+    <image wx:if="{{hasImage}}" class="receipt-image" src="{{imageUrl}}" mode="widthFix" bindtap="previewOriginal" />
+    <view wx:else class="empty">手工录入账单没有原图。</view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">票据信息</view>
+    <view class="grid-2">
+      <view>
+        <view class="label">票据号</view>
+        <input class="input" disabled="{{isLocked}}" value="{{form.ticket_no}}" data-field="ticket_no" bindinput="onHeaderInput" />
+      </view>
+      <view>
+        <view class="label">日期</view>
+        <input class="input" disabled="{{isLocked}}" value="{{form.receipt_date}}" data-field="receipt_date" bindinput="onHeaderInput" />
+      </view>
+      <view>
+        <view class="label">供应商</view>
+        <input class="input" disabled="{{isLocked}}" value="{{form.supplier}}" data-field="supplier" bindinput="onHeaderInput" />
+      </view>
+      <view>
+        <view class="label">客户</view>
+        <input class="input" disabled="{{isLocked}}" value="{{form.customer}}" data-field="customer" bindinput="onHeaderInput" />
+      </view>
+      <view>
+        <view class="label">总数量</view>
+        <input class="input" disabled="{{isLocked}}" type="number" value="{{form.total_quantity}}" data-field="total_quantity" bindinput="onHeaderInput" />
+      </view>
+      <view>
+        <view class="label">总金额</view>
+        <input class="input" disabled="{{isLocked}}" type="digit" value="{{form.total_amount}}" data-field="total_amount" bindinput="onHeaderInput" />
+      </view>
+    </view>
+    <view class="notes-field">
+      <view class="label">备注</view>
+      <textarea class="textarea" disabled="{{isLocked}}" value="{{form.notes}}" data-field="notes" bindinput="onHeaderInput" />
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="row-between">
+      <view class="section-title">明细</view>
+      <button class="btn btn-plain small-btn" disabled="{{isLocked}}" bindtap="addItem">新增行</button>
+    </view>
+    <view wx:for="{{form.items}}" wx:key="index" class="item-card">
+      <view class="row-between item-title">
+        <text>第 {{index + 1}} 行</text>
+        <button class="remove-line" bindtap="removeItem" data-index="{{index}}" disabled="{{isLocked || form.items.length <= 1}}">删除</button>
+      </view>
+      <view class="grid-2">
+        <view>
+          <view class="label">款号</view>
+          <input class="input" disabled="{{isLocked}}" value="{{item.style_no}}" data-index="{{index}}" data-field="style_no" bindinput="onItemInput" />
+        </view>
+        <view>
+          <view class="label">品名</view>
+          <input class="input" disabled="{{isLocked}}" value="{{item.product_name}}" data-index="{{index}}" data-field="product_name" bindinput="onItemInput" />
+        </view>
+        <view>
+          <view class="label">颜色</view>
+          <input class="input" disabled="{{isLocked}}" value="{{item.color}}" data-index="{{index}}" data-field="color" bindinput="onItemInput" />
+        </view>
+        <view>
+          <view class="label">尺码</view>
+          <input class="input" disabled="{{isLocked}}" value="{{item.size}}" data-index="{{index}}" data-field="size" bindinput="onItemInput" />
+        </view>
+        <view>
+          <view class="label">数量</view>
+          <input class="input" disabled="{{isLocked}}" type="number" value="{{item.quantity}}" data-index="{{index}}" data-field="quantity" bindinput="onItemInput" />
+        </view>
+        <view>
+          <view class="label">单价</view>
+          <input class="input" disabled="{{isLocked}}" type="digit" value="{{item.unit_price}}" data-index="{{index}}" data-field="unit_price" bindinput="onItemInput" />
+        </view>
+        <view>
+          <view class="label">金额</view>
+          <input class="input" disabled="{{isLocked}}" type="digit" value="{{item.amount}}" data-index="{{index}}" data-field="amount" bindinput="onItemInput" />
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="bottom-actions">
+    <button class="btn btn-secondary" loading="{{saving}}" disabled="{{saving || confirming || isLocked}}" bindtap="saveOnly">保存修改</button>
+    <button class="btn btn-primary" loading="{{confirming}}" disabled="{{saving || confirming}}" bindtap="confirm">确认账单</button>
+  </view>
+</view>

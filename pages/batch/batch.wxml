@@ -1,0 +1,47 @@
+<view class="page">
+  <view class="section">
+    <view class="row-between">
+      <view>
+        <view class="section-title">批次 #{{batch.id || batchId}}</view>
+        <view class="muted">{{batch.title || '未命名批次'}}</view>
+      </view>
+      <text class="badge badge-{{batchTone}}">{{batchStatusText}}</text>
+    </view>
+    <view class="progress-wrap">
+      <view class="row-between">
+        <text class="muted">处理进度</text>
+        <text class="progress-text">{{progressPercent}}%</text>
+      </view>
+      <progress percent="{{progressPercent}}" stroke-width="8" activeColor="#0f766e" backgroundColor="#dce8e4" />
+    </view>
+    <view class="count-row">
+      <view wx:for="{{countsList}}" wx:key="key" class="count-item">
+        <text class="muted">{{item.text}}</text>
+        <text class="count-value">{{item.value}}</text>
+      </view>
+    </view>
+    <view class="row action-row">
+      <button class="btn btn-secondary" loading="{{loading}}" bindtap="loadBatch">刷新</button>
+      <button class="btn btn-primary" loading="{{exporting}}" disabled="{{exporting || !canExport}}" bindtap="exportExcel">导出 Excel</button>
+    </view>
+    <view wx:if="{{localMode}}" class="muted">多图上传降级兼容模式；导出会使用后端“全部票据导出”。</view>
+    <view wx:if="{{!canExport}}" class="muted">有待审核、需修改或已确认票据后可导出。</view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">票据列表</view>
+    <view wx:if="{{!receipts.length}}" class="empty">暂无票据。</view>
+    <view wx:else class="receipt-list">
+      <view wx:for="{{receipts}}" wx:key="receipt_id" class="receipt-card" bindtap="openReceipt" data-id="{{item.receipt_id}}">
+        <view class="row-between">
+          <view class="receipt-name">{{item.filename}}</view>
+          <text class="badge badge-{{item.tone}}">{{item.statusText}}</text>
+        </view>
+        <view class="row receipt-meta">
+          <text>#{{item.receipt_id}}</text>
+          <text wx:if="{{item.duplicate}}" class="badge badge-warn">重复票据</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

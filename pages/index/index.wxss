@@ -1,0 +1,137 @@
+.thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14rpx;
+}
+
+.thumb-item {
+  position: relative;
+}
+
+.thumb {
+  width: 100%;
+  height: 210rpx;
+  background: #dfe8e5;
+  border-radius: 8rpx;
+}
+
+.remove-btn {
+  position: absolute;
+  right: 8rpx;
+  top: 8rpx;
+  width: 88rpx;
+  height: 44rpx;
+  padding: 0;
+  color: #ffffff;
+  background: rgba(15, 32, 29, 0.78);
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  line-height: 44rpx;
+}
+
+.upload-stack {
+  margin-top: 22rpx;
+}
+
+.small-login {
+  width: 160rpx;
+  height: 64rpx;
+  padding: 0;
+  line-height: 64rpx;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  margin: 20rpx 0;
+}
+
+.tab {
+  height: 68rpx;
+  padding: 0;
+  color: #50605b;
+  background: #f8fbfa;
+  border: 1rpx solid #c9d9d4;
+  border-radius: 8rpx;
+  font-size: 26rpx;
+  line-height: 68rpx;
+}
+
+.tab-active {
+  color: #ffffff;
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.history-card {
+  padding: 18rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.history-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #17201d;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  margin-top: 12rpx;
+  color: #6a7773;
+  font-size: 24rpx;
+}
+
+.filter-panel {
+  margin-bottom: 18rpx;
+  padding: 18rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.picker-input {
+  line-height: 44rpx;
+}
+
+.filter-actions {
+  margin-top: 16rpx;
+}
+
+.history-actions {
+  justify-content: flex-end;
+  margin-top: 14rpx;
+}
+
+.mini-danger,
+.mini-link {
+  width: 104rpx;
+  height: 52rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 52rpx;
+}
+
+.mini-danger {
+  color: #b42318;
+  background: #fff;
+  border: 1rpx solid #ffc7c2;
+}
+
+.mini-link {
+  color: #0f766e;
+  background: #e4f3ef;
+}

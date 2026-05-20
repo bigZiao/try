@@ -1,0 +1,42 @@
+.small-btn {
+  width: 156rpx;
+  height: 64rpx;
+  padding: 0;
+  line-height: 64rpx;
+}
+
+.item-card {
+  margin-top: 18rpx;
+  padding: 20rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.item-title {
+  margin-bottom: 16rpx;
+  font-weight: 700;
+}
+
+.remove-line {
+  width: 112rpx;
+  height: 56rpx;
+  padding: 0;
+  color: #b42318;
+  background: #fff;
+  border: 1rpx solid #ffc7c2;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 56rpx;
+}
+
+.single-action {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  margin: 0 -28rpx;
+  padding: 18rpx 28rpx calc(18rpx + env(safe-area-inset-bottom));
+  background: rgba(244, 247, 246, 0.96);
+  border-top: 1rpx solid #dce8e4;
+}

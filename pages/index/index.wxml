@@ -1,0 +1,115 @@
+<view class="page">
+  <view class="section">
+    <view class="row-between">
+      <view>
+        <view class="section-title">上传拿货账单</view>
+        <view class="muted">用户ID：{{userId}}<text wx:if="{{userName}}"> / {{userName}}</text></view>
+      </view>
+      <button class="btn btn-plain small-login" loading="{{loginLoading}}" bindtap="relogin">重新登录</button>
+    </view>
+    <view class="stack upload-stack">
+      <view>
+        <view class="label">批次标题</view>
+        <input class="input" placeholder="例如：5月20日十三行拿货" value="{{title}}" bindinput="onTitleInput" />
+      </view>
+      <view class="row">
+        <button class="btn btn-secondary" bindtap="chooseImages">选择图片</button>
+        <button class="btn btn-primary" loading="{{uploading}}" disabled="{{!files.length || uploading}}" bindtap="upload">上传识别</button>
+      </view>
+      <button class="btn btn-secondary" bindtap="openManual">手工录入账单</button>
+      <button class="btn btn-plain" loading="{{exporting}}" disabled="{{exporting}}" bindtap="exportAll">导出全部 Excel</button>
+      <view class="muted">后端地址：{{baseUrl}}</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="row-between">
+      <view class="section-title">待上传图片</view>
+      <text class="muted">{{files.length}} 张</text>
+    </view>
+    <view wx:if="{{!files.length}}" class="empty">请选择票据照片，可一次选择多张。</view>
+    <view wx:else class="thumb-grid">
+      <view wx:for="{{files}}" wx:key="tempFilePath" class="thumb-item">
+        <image class="thumb" src="{{item.tempFilePath}}" mode="aspectFill" bindtap="previewImage" data-index="{{index}}" />
+        <button class="remove-btn" bindtap="removeImage" data-index="{{index}}">移除</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="row-between">
+      <view class="section-title">历史数据</view>
+      <button class="btn btn-plain small-login" loading="{{historyLoading}}" bindtap="loadHistory">刷新</button>
+    </view>
+    <view class="tabs">
+      <button class="tab {{activeHistoryTab === 'batches' ? 'tab-active' : ''}}" data-tab="batches" bindtap="switchHistoryTab">批次</button>
+      <button class="tab {{activeHistoryTab === 'receipts' ? 'tab-active' : ''}}" data-tab="receipts" bindtap="switchHistoryTab">账单</button>
+    </view>
+
+    <view wx:if="{{activeHistoryTab === 'batches'}}">
+      <view wx:if="{{!batches.length}}" class="empty">暂无批次。</view>
+      <view wx:else class="history-list">
+        <view wx:for="{{batches}}" wx:key="id" class="history-card" data-id="{{item.id}}" bindtap="openBatch">
+          <view class="row-between">
+            <view class="history-title">批次 #{{item.id}} {{item.title || ''}}</view>
+            <text class="badge badge-{{item.tone}}">{{item.statusText}}</text>
+          </view>
+          <view class="history-meta">进度 {{item.progressPercent}}% · 完成 {{item.completed_count || 0}}/{{item.total_count || 0}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{activeHistoryTab === 'receipts'}}">
+      <view class="filter-panel">
+        <view class="grid-2">
+          <view>
+            <view class="label">状态</view>
+            <picker mode="selector" range="{{['全部','待审核','需修改','已确认','失败','已删除']}}" bindchange="onStatusFilterChange">
+              <view class="input picker-input">{{receiptFilters.status || '全部'}}</view>
+            </picker>
+          </view>
+          <view>
+            <view class="label">来源</view>
+            <picker mode="selector" range="{{['全部','图片','手工']}}" bindchange="onSourceFilterChange">
+              <view class="input picker-input">{{receiptFilters.source_type || '全部'}}</view>
+            </picker>
+          </view>
+          <view>
+            <view class="label">开始日期</view>
+            <input class="input" placeholder="YYYY-MM-DD" value="{{receiptFilters.start_date}}" data-field="start_date" bindinput="onFilterInput" />
+          </view>
+          <view>
+            <view class="label">结束日期</view>
+            <input class="input" placeholder="YYYY-MM-DD" value="{{receiptFilters.end_date}}" data-field="end_date" bindinput="onFilterInput" />
+          </view>
+          <view>
+            <view class="label">店名</view>
+            <input class="input" placeholder="模糊搜索店名" value="{{receiptFilters.merchant_name}}" data-field="merchant_name" bindinput="onFilterInput" />
+          </view>
+          <view>
+            <view class="label">关键词</view>
+            <input class="input" placeholder="款号/品名/颜色/尺码" value="{{receiptFilters.keyword}}" data-field="keyword" bindinput="onFilterInput" />
+          </view>
+        </view>
+        <view class="row filter-actions">
+          <button class="btn btn-secondary" bindtap="applyReceiptFilters">筛选</button>
+          <button class="btn btn-plain" bindtap="resetReceiptFilters">重置</button>
+        </view>
+      </view>
+      <view wx:if="{{!receipts.length}}" class="empty">暂无账单。</view>
+      <view wx:else class="history-list">
+        <view wx:for="{{receipts}}" wx:key="id" class="history-card">
+          <view class="row-between">
+            <view class="history-title" data-id="{{item.id}}" bindtap="openReceipt">账单 #{{item.id}} {{item.titleText}}</view>
+            <text class="badge badge-{{item.tone}}">{{item.statusText}}</text>
+          </view>
+          <view class="history-meta">{{item.source_type || 'image'}} · 批次 #{{item.batch_id || '-'}} · {{item.metaText}}</view>
+          <view class="row history-actions">
+            <button wx:if="{{item.status !== 'deleted'}}" class="mini-danger" data-id="{{item.id}}" catchtap="deleteReceipt">删除</button>
+            <button class="mini-link" data-id="{{item.id}}" catchtap="openReceipt">查看</button>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
