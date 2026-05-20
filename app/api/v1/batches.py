@@ -32,6 +32,7 @@ async def create_batch(
     db.refresh(batch)
 
     upload_results: list[BatchReceiptUploadResult] = []
+    receipt_ids_to_process: list[int] = []
     for file in files:
         receipt, duplicate = await service.create_pending_receipt(file, user_id=user_id, batch_id=batch.id)
         if duplicate:
@@ -54,11 +55,13 @@ async def create_batch(
                 duplicate=False,
             )
         )
-        background_tasks.add_task(ReceiptPipelineService.process_receipt_task, receipt.id)
+        receipt_ids_to_process.append(receipt.id)
 
     batch.status = "queued" if any(not result.duplicate for result in upload_results) else "empty"
     db.commit()
     db.refresh(batch)
+    if receipt_ids_to_process:
+        background_tasks.add_task(ReceiptPipelineService.process_receipts_task, receipt_ids_to_process)
     return _batch_response(batch, upload_results, db)
 
 
@@ -124,10 +127,34 @@ def _batch_response(
     receipts: list[BatchReceiptUploadResult],
     db: Session,
 ) -> ReceiptBatchResponse:
-    rows = db.query(Receipt.status).filter(Receipt.batch_id == batch.id).all()
+    rows = db.query(Receipt.status, Receipt.duplicate_status).filter(Receipt.batch_id == batch.id).all()
     counts: dict[str, int] = {}
-    for (status,) in rows:
+    duplicate_count = 0
+    processing_count = 0
+    ready_for_review_count = 0
+    need_review_count = 0
+    confirmed_count = 0
+    failed_count = 0
+
+    for status, duplicate_status in rows:
         counts[status] = counts.get(status, 0) + 1
+        if duplicate_status != "unique":
+            duplicate_count += 1
+            continue
+        if status in {"uploaded", "queued", "ocr_processing", "llm_structuring", "rule_checking", "vision_processing"}:
+            processing_count += 1
+        elif status == "ready_for_review":
+            ready_for_review_count += 1
+        elif status == "need_review":
+            need_review_count += 1
+        elif status == "confirmed":
+            confirmed_count += 1
+        elif status == "failed":
+            failed_count += 1
+
+    total_count = len(rows)
+    completed_count = duplicate_count + ready_for_review_count + need_review_count + confirmed_count + failed_count
+    progress_percent = int(completed_count * 100 / total_count) if total_count else 0
     return ReceiptBatchResponse(
         id=batch.id,
         user_id=batch.user_id,
@@ -138,4 +165,13 @@ def _batch_response(
         updated_at=batch.updated_at,
         receipts=receipts,
         counts=counts,
+        total_count=total_count,
+        duplicate_count=duplicate_count,
+        processing_count=processing_count,
+        ready_for_review_count=ready_for_review_count,
+        need_review_count=need_review_count,
+        confirmed_count=confirmed_count,
+        failed_count=failed_count,
+        completed_count=completed_count,
+        progress_percent=progress_percent,
     )

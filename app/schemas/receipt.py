@@ -15,6 +15,23 @@ class ReceiptItem(BaseModel):
     amount: Decimal = Decimal("0")
 
 
+class ReviewReceiptItemRequest(BaseModel):
+    style_no: str | None = None
+    product_name: str | None = None
+    color: str | None = None
+    size: str | None = None
+    sizes: list[dict[str, Any]] | dict[str, Any] | None = None
+    quantity: int | None = None
+    unit_price: Decimal | int | float | str | None = None
+    subtotal: Decimal | int | float | str | None = None
+    block_indexes: list[int] = Field(default_factory=list)
+
+
+class ReviewReceiptFieldsRequest(BaseModel):
+    fields: dict[str, Any] = Field(default_factory=dict)
+    summary: dict[str, Any] | None = None
+
+
 class StructuredReceipt(BaseModel):
     ticket_no: str | None = None
     receipt_date: str | None = None
@@ -95,3 +112,12 @@ class ReceiptBatchResponse(BaseModel):
     updated_at: datetime
     receipts: list[BatchReceiptUploadResult] = Field(default_factory=list)
     counts: dict[str, int] = Field(default_factory=dict)
+    total_count: int = 0
+    duplicate_count: int = 0
+    processing_count: int = 0
+    ready_for_review_count: int = 0
+    need_review_count: int = 0
+    confirmed_count: int = 0
+    failed_count: int = 0
+    completed_count: int = 0
+    progress_percent: int = 0

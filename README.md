@@ -40,7 +40,13 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 
 - `POST /api/v1/receipts` upload one image, create a receipt task, and process it in the background
 - `GET /api/v1/receipts/{receipt_id}` get saved pipeline data
+- `GET /api/v1/receipts/{receipt_id}/image` get the original uploaded image for review UI
 - `POST /api/v1/receipts/{receipt_id}/confirm` submit final confirmed JSON
+- `POST /api/v1/receipts/{receipt_id}/retry` rerun OCR + LLM from the original image after failure
+- `PATCH /api/v1/receipts/{receipt_id}/review-fields` update receipt-level fields or summary and rerun rules
+- `POST /api/v1/receipts/{receipt_id}/review-items` add one item row and rerun rules
+- `PATCH /api/v1/receipts/{receipt_id}/review-items/{item_index}` update one item row and rerun rules
+- `DELETE /api/v1/receipts/{receipt_id}/review-items/{item_index}` delete one item row and rerun rules
 - `POST /api/v1/receipts/{receipt_id}/vision-rerun` rerun a difficult receipt with image + OCR vision parsing
 - `GET /api/v1/receipts/{receipt_id}/export.xlsx` export one receipt
 - `GET /api/v1/receipts/export.xlsx` export all confirmed/reviewable receipts
@@ -57,10 +63,20 @@ All receipt and batch APIs accept `X-User-Id`; it defaults to `1` for local MVP 
 Owner uploads multiple receipt photos
 -> backend saves images and creates a receipt batch
 -> exact duplicate images are detected with user_id + image_sha256
--> new receipts are processed in background tasks
+-> new receipts are processed concurrently in background tasks
 -> mini-program polls GET /api/v1/batches/{batch_id}
--> owner reviews or confirms receipts
+-> owner reviews original image + parsed JSON side by side
+-> owner edits and confirms receipts
 -> export batch Excel
+```
+
+MVP concurrency can be tuned with:
+
+```env
+BATCH_PROCESSING_CONCURRENCY=3
+OCR_CONCURRENCY=5
+LLM_CONCURRENCY=2
+VISION_LLM_CONCURRENCY=1
 ```
 
 Core tables:
@@ -70,6 +86,16 @@ Core tables:
 - `receipts`: one receipt image and the full OCR/LLM/rule pipeline data.
 - `receipt_items`: structured item rows synced from confirmed or review-ready JSON.
 - `receipt_runs`: rerun records for difficult receipts.
+
+## Database Migrations
+
+Alembic is configured for production-style schema changes:
+
+```bash
+alembic upgrade head
+```
+
+`DATABASE_URL` is read from the same environment as the FastAPI app. Local SQLite still keeps the lightweight startup bootstrap for MVP development, but MySQL deployments should use Alembic migrations.
 
 ## DeepSeek
 

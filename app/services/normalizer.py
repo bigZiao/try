@@ -12,6 +12,21 @@ class ReceiptNormalizer:
         normalized.setdefault("need_review", None)
         normalized.setdefault("confidence", None)
         normalized.setdefault("confidence_reason", None)
+        self._copy_first(normalized, "merchant_name", ["supplier", "shop_name", "store_name"])
+        self._copy_first(normalized, "order_date", ["receipt_date", "date"])
+        self._copy_first(normalized, "customer_name", ["customer", "buyer_name"])
+
+        summary = normalized.get("summary")
+        if not isinstance(summary, dict):
+            summary = {}
+        self._copy_first(summary, "total_quantity", ["quantity_total"])
+        self._copy_first(summary, "total_amount", ["amount_total"])
+        if normalized.get("total_quantity") is not None and summary.get("total_quantity") is None:
+            summary["total_quantity"] = normalized["total_quantity"]
+        if normalized.get("total_amount") is not None and summary.get("total_amount") is None:
+            summary["total_amount"] = normalized["total_amount"]
+        if summary:
+            normalized["summary"] = summary
 
         items = normalized.get("items")
         if isinstance(items, list):

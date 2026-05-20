@@ -55,6 +55,11 @@ class Settings:
     vision_llm_model: str = os.getenv("VISION_LLM_MODEL", "doubao-1-5-vision-pro-32k-250115")
     vision_llm_base_url: str = os.getenv("VISION_LLM_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
 
+    batch_processing_concurrency: int = int(os.getenv("BATCH_PROCESSING_CONCURRENCY", "3"))
+    ocr_concurrency: int = int(os.getenv("OCR_CONCURRENCY", "5"))
+    llm_concurrency: int = int(os.getenv("LLM_CONCURRENCY", "2"))
+    vision_llm_concurrency: int = int(os.getenv("VISION_LLM_CONCURRENCY", "1"))
+
 
 @lru_cache
 def get_settings() -> Settings:

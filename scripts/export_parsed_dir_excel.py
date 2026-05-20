@@ -209,8 +209,6 @@ def normalize_size(value: Any) -> Any:
     text = str(value).strip()
     if not text:
         return None
-    if re.fullmatch(r"\d+(?:\.\d+)?", text):
-        return None
     if ":" in text or "：" in text or "," in text or "，" in text:
         return None
 

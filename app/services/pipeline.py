@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from pathlib import Path
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.adapters.llm import get_llm_adapter
 from app.adapters.ocr import get_ocr_adapter
 from app.adapters.vision_llm import get_vision_llm_adapter
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.receipt_batch import ReceiptBatch
 from app.models.receipt_item import ReceiptItem
@@ -19,6 +22,19 @@ from app.services.rule_engine import RuleEngine
 from app.services.storage import ImageStorageService
 
 
+_limiters: dict[tuple[int, str], tuple[int, asyncio.Semaphore]] = {}
+
+
+def _get_limiter(name: str, limit: int) -> asyncio.Semaphore:
+    normalized_limit = max(limit, 1)
+    key = (id(asyncio.get_running_loop()), name)
+    current = _limiters.get(key)
+    if current is None or current[0] != normalized_limit:
+        current = (normalized_limit, asyncio.Semaphore(normalized_limit))
+        _limiters[key] = current
+    return current[1]
+
+
 class ReceiptPipelineService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -28,6 +44,7 @@ class ReceiptPipelineService:
         self.vision_llm = get_vision_llm_adapter()
         self.rules = RuleEngine()
         self.normalizer = ReceiptNormalizer()
+        self.settings = get_settings()
 
     def ensure_user(self, user_id: int) -> User:
         user = self.db.get(User, user_id)
@@ -94,11 +111,21 @@ class ReceiptPipelineService:
             receipt.status = "ocr_processing"
             self.db.commit()
 
-            receipt.ocr_json = await self.ocr.recognize(image_path)
+            receipt.ocr_json = await self._limited(
+                "ocr",
+                self.settings.ocr_concurrency,
+                lambda: self.ocr.recognize(image_path),
+            )
             receipt.status = "llm_structuring"
             self.db.commit()
 
-            structured_json = self.normalizer.normalize(await self.llm.structure_receipt(receipt.ocr_json))
+            structured_json = self.normalizer.normalize(
+                await self._limited(
+                    "llm",
+                    self.settings.llm_concurrency,
+                    lambda: self.llm.structure_receipt(receipt.ocr_json),
+                )
+            )
             result = await self._run_rule_and_correction(structured_json, receipt.ocr_json)
             receipt.structured_json = result["structured_json"]
             receipt.corrected_json = result["corrected_json"]
@@ -127,6 +154,42 @@ class ReceiptPipelineService:
         finally:
             db.close()
 
+    @staticmethod
+    async def process_receipts_task(receipt_ids: list[int]) -> None:
+        settings = get_settings()
+        semaphore = asyncio.Semaphore(max(settings.batch_processing_concurrency, 1))
+
+        async def worker(receipt_id: int) -> None:
+            async with semaphore:
+                db = SessionLocal()
+                try:
+                    await ReceiptPipelineService(db).process_receipt(receipt_id)
+                except Exception:
+                    # process_receipt already persists failed status and note.
+                    return
+                finally:
+                    db.close()
+
+        await asyncio.gather(*(worker(receipt_id) for receipt_id in receipt_ids))
+
+    def retry(self, receipt_id: int) -> Receipt:
+        receipt = self.db.get(Receipt, receipt_id)
+        if receipt is None:
+            raise HTTPException(status_code=404, detail="Receipt not found")
+
+        receipt.status = "queued"
+        receipt.note = None
+        receipt.ocr_json = None
+        receipt.structured_json = None
+        receipt.corrected_json = None
+        receipt.final_json = None
+        receipt.validation_errors = None
+        self.db.query(ReceiptItem).filter(ReceiptItem.receipt_id == receipt.id).delete()
+        self.db.commit()
+        self._refresh_batch_status(receipt.batch_id)
+        self.db.refresh(receipt)
+        return receipt
+
     async def vision_rerun(
         self,
         receipt_id: int,
@@ -140,10 +203,14 @@ class ReceiptPipelineService:
             raise HTTPException(status_code=400, detail="Receipt has no OCR JSON")
 
         structured_json = self.normalizer.normalize(
-            await self.vision_llm.structure_receipt(
-                image_path=Path(receipt.image_path),
-                ocr_json=receipt.ocr_json,
-                reason=reason,
+            await self._limited(
+                "vision_llm",
+                self.settings.vision_llm_concurrency,
+                lambda: self.vision_llm.structure_receipt(
+                    image_path=Path(receipt.image_path),
+                    ocr_json=receipt.ocr_json,
+                    reason=reason,
+                ),
             )
         )
         result = await self._run_rule_and_correction(structured_json, receipt.ocr_json)
@@ -194,10 +261,14 @@ class ReceiptPipelineService:
             }
 
         corrected_json = self.normalizer.normalize(
-            await self.llm.correct_receipt(
-                normalized_structured,
-                first_errors,
-                ocr_json,
+            await self._limited(
+                "llm",
+                self.settings.llm_concurrency,
+                lambda: self.llm.correct_receipt(
+                    normalized_structured,
+                    first_errors,
+                    ocr_json,
+                ),
             )
         )
         second_errors = self.rules.validate(corrected_json)
@@ -214,13 +285,85 @@ class ReceiptPipelineService:
         if receipt is None:
             raise HTTPException(status_code=404, detail="Receipt not found")
 
+        return self._save_review_json(receipt, final_json, confirmed=True)
+
+    def update_review_fields(
+        self,
+        receipt_id: int,
+        fields: dict[str, Any],
+        summary: dict[str, Any] | None = None,
+    ) -> Receipt:
+        receipt = self._get_receipt_or_404(receipt_id)
+        data = self._editable_json(receipt)
+        for key, value in fields.items():
+            data[key] = value
+        if summary is not None:
+            current_summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+            data["summary"] = {**current_summary, **summary}
+        return self._save_review_json(receipt, data)
+
+    def add_review_item(self, receipt_id: int, item: dict[str, Any]) -> Receipt:
+        receipt = self._get_receipt_or_404(receipt_id)
+        data = self._editable_json(receipt)
+        items = data.get("items") if isinstance(data.get("items"), list) else []
+        items.append(item)
+        data["items"] = items
+        return self._save_review_json(receipt, data)
+
+    def update_review_item(self, receipt_id: int, item_index: int, item: dict[str, Any]) -> Receipt:
+        receipt = self._get_receipt_or_404(receipt_id)
+        data = self._editable_json(receipt)
+        items = data.get("items") if isinstance(data.get("items"), list) else []
+        if item_index < 0 or item_index >= len(items):
+            raise HTTPException(status_code=404, detail="Receipt item not found")
+
+        current_item = items[item_index] if isinstance(items[item_index], dict) else {}
+        items[item_index] = {**current_item, **item}
+        data["items"] = items
+        return self._save_review_json(receipt, data)
+
+    def delete_review_item(self, receipt_id: int, item_index: int) -> Receipt:
+        receipt = self._get_receipt_or_404(receipt_id)
+        data = self._editable_json(receipt)
+        items = data.get("items") if isinstance(data.get("items"), list) else []
+        if item_index < 0 or item_index >= len(items):
+            raise HTTPException(status_code=404, detail="Receipt item not found")
+
+        del items[item_index]
+        data["items"] = items
+        return self._save_review_json(receipt, data)
+
+    def _get_receipt_or_404(self, receipt_id: int) -> Receipt:
+        receipt = self.db.get(Receipt, receipt_id)
+        if receipt is None:
+            raise HTTPException(status_code=404, detail="Receipt not found")
+        return receipt
+
+    def _editable_json(self, receipt: Receipt) -> dict[str, Any]:
+        source = receipt.final_json or receipt.corrected_json or receipt.structured_json or {}
+        data = dict(source)
+        items = data.get("items")
+        data["items"] = [dict(item) for item in items if isinstance(item, dict)] if isinstance(items, list) else []
+        return data
+
+    def _save_review_json(
+        self,
+        receipt: Receipt,
+        final_json: dict[str, Any],
+        confirmed: bool = False,
+    ) -> Receipt:
         normalized_json = self.normalizer.normalize(final_json)
         errors = self.rules.validate(normalized_json)
         receipt.final_json = normalized_json
         receipt.validation_errors = errors
-        receipt.status = "confirmed" if not errors else "need_review"
-        if receipt.status == "confirmed":
+        if confirmed:
+            receipt.status = "confirmed" if not errors else "need_review"
+        else:
+            receipt.status = "ready_for_review" if not errors else "need_review"
+        if receipt.status in {"ready_for_review", "confirmed"}:
             self._sync_receipt_items(receipt)
+        else:
+            self.db.query(ReceiptItem).filter(ReceiptItem.receipt_id == receipt.id).delete()
         self.db.commit()
         self._refresh_batch_status(receipt.batch_id)
         self.db.refresh(receipt)
@@ -265,10 +408,15 @@ class ReceiptPipelineService:
         ]
         if not statuses:
             batch.status = "empty"
-        elif all(status in {"ready_for_review", "confirmed"} for status in statuses):
-            batch.status = "ready_for_review"
-        elif any(status == "failed" for status in statuses):
-            batch.status = "partial_failed"
+        elif all(status in {"ready_for_review", "need_review", "confirmed", "failed"} for status in statuses):
+            if any(status == "failed" for status in statuses):
+                batch.status = "partial_failed"
+            elif any(status == "need_review" for status in statuses):
+                batch.status = "need_review"
+            elif all(status == "confirmed" for status in statuses):
+                batch.status = "confirmed"
+            else:
+                batch.status = "ready_for_review"
         else:
             batch.status = "processing"
         self.db.commit()
@@ -305,3 +453,12 @@ class ReceiptPipelineService:
             return Decimal(str(value or "0").replace(",", ""))
         except InvalidOperation:
             return Decimal("0")
+
+    async def _limited(
+        self,
+        name: str,
+        limit: int,
+        factory: Callable[[], Awaitable[Any]],
+    ) -> Any:
+        async with _get_limiter(name, limit):
+            return await factory()

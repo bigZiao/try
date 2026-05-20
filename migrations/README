@@ -1,0 +1,7 @@
+Alembic migrations for the receipt OCR backend.
+
+Use:
+
+    alembic upgrade head
+
+The database URL is read from DATABASE_URL through migrations/env.py.
