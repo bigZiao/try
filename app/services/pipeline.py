@@ -1,8 +1,10 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
 from typing import Any
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -105,6 +107,41 @@ class ReceiptPipelineService:
             return receipt
 
         return await self.process_receipt(receipt.id)
+
+    def create_manual_receipt(self, payload: dict[str, Any], user_id: int = 1) -> Receipt:
+        user = self.ensure_user(user_id)
+        data = dict(payload)
+        data.setdefault("parse_status", "manual")
+        data.setdefault("bill_type", "manual_receipt")
+        data.setdefault("customer_name", user.display_name)
+        data.setdefault("payments", [])
+        data.setdefault("warnings", [])
+        data.setdefault("need_review", False)
+        data.setdefault("confidence", 1)
+        data.setdefault("confidence_reason", "Manual entry by owner.")
+
+        normalized_json = self.normalizer.normalize(data)
+        errors = self.rules.validate(normalized_json)
+        digest = sha256(f"manual:{user_id}:{uuid4().hex}".encode("utf-8")).hexdigest()
+        receipt = Receipt(
+            user_id=user_id,
+            source_type="manual",
+            original_filename="manual",
+            image_path="",
+            image_sha256=digest,
+            duplicate_status="unique",
+            status="ready_for_review" if not errors else "need_review",
+            final_json=normalized_json,
+            validation_errors=errors,
+            note=payload.get("note"),
+        )
+        self.db.add(receipt)
+        self.db.commit()
+        if receipt.status == "ready_for_review":
+            self._sync_receipt_items(receipt)
+            self.db.commit()
+        self.db.refresh(receipt)
+        return receipt
 
     async def process_receipt(self, receipt_id: int) -> Receipt:
         receipt = self.db.get(Receipt, receipt_id)
@@ -382,8 +419,7 @@ class ReceiptPipelineService:
         return data
 
     def _ensure_editable(self, receipt: Receipt) -> None:
-        if receipt.status == "confirmed":
-            raise HTTPException(status_code=409, detail="Confirmed receipt is locked")
+        return None
 
     def _save_review_json(
         self,

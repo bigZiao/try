@@ -47,6 +47,17 @@ class ConfirmReceiptRequest(BaseModel):
     final_json: dict[str, Any]
 
 
+class ManualReceiptRequest(BaseModel):
+    merchant_name: str | None = None
+    order_date: str | None = None
+    customer_name: str | None = None
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    summary: dict[str, Any] = Field(default_factory=dict)
+    payments: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    note: str | None = None
+
+
 class VisionRerunRequest(BaseModel):
     apply_result: bool = False
     reason: str | None = None
@@ -76,6 +87,7 @@ class ReceiptResponse(BaseModel):
     id: int
     user_id: int
     batch_id: int | None = None
+    source_type: str = "image"
     original_filename: str
     image_path: str
     image_sha256: str
@@ -90,6 +102,31 @@ class ReceiptResponse(BaseModel):
     note: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ReceiptListItemResponse(BaseModel):
+    id: int
+    user_id: int
+    batch_id: int | None = None
+    source_type: str = "image"
+    original_filename: str
+    duplicate_status: str
+    status: str
+    merchant_name: str | None = None
+    order_date: str | None = None
+    customer_name: str | None = None
+    total_quantity: int | None = None
+    total_amount: str | None = None
+    need_review: bool | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReceiptListResponse(BaseModel):
+    items: list[ReceiptListItemResponse] = Field(default_factory=list)
+    total: int = 0
+    limit: int = 50
+    offset: int = 0
 
 
 class BatchReceiptUploadResult(BaseModel):
@@ -121,3 +158,29 @@ class ReceiptBatchResponse(BaseModel):
     failed_count: int = 0
     completed_count: int = 0
     progress_percent: int = 0
+
+
+class ReceiptBatchSummaryResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str | None = None
+    status: str
+    note: str | None = None
+    total_count: int = 0
+    duplicate_count: int = 0
+    processing_count: int = 0
+    ready_for_review_count: int = 0
+    need_review_count: int = 0
+    confirmed_count: int = 0
+    failed_count: int = 0
+    completed_count: int = 0
+    progress_percent: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReceiptBatchListResponse(BaseModel):
+    items: list[ReceiptBatchSummaryResponse] = Field(default_factory=list)
+    total: int = 0
+    limit: int = 50
+    offset: int = 0

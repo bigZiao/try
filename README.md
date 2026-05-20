@@ -51,6 +51,8 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 ## Main APIs
 
 - `POST /api/v1/receipts` upload one image, create a receipt task, and process it in the background
+- `POST /api/v1/receipts/manual` create a manual receipt without an image; `customer_name` defaults to the current owner
+- `GET /api/v1/receipts` list the current owner's receipts; supports `status`, `batch_id`, `limit`, `offset`
 - `GET /api/v1/receipts/{receipt_id}` get saved pipeline data
 - `GET /api/v1/receipts/{receipt_id}/image` get the original uploaded image for review UI
 - `POST /api/v1/receipts/{receipt_id}/confirm` submit final confirmed JSON
@@ -63,6 +65,7 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 - `GET /api/v1/receipts/{receipt_id}/export.xlsx` export one receipt
 - `GET /api/v1/receipts/export.xlsx` export all confirmed/reviewable receipts
 - `POST /api/v1/batches` upload multiple images as one batch
+- `GET /api/v1/batches` list the current owner's batches; supports `status`, `limit`, `offset`
 - `GET /api/v1/batches/{batch_id}` get batch progress and receipt statuses
 - `GET /api/v1/batches/{batch_id}/export.xlsx` export one batch
 - `GET /health`

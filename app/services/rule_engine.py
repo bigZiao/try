@@ -45,14 +45,26 @@ class RuleEngine:
                 "style_number",
                 "款号",
             )
+            product_name = self._get(
+                item,
+                "product_name",
+                "sku_name",
+                "spu_name",
+                "goods_name",
+                "item_name",
+                "name",
+                "商品名称",
+                "商品名",
+                "名称",
+            )
             size = self._get(item, "size", "size_name", "尺码")
             sizes = self._get(item, "sizes", "size_quantities", "尺码明细")
-            if not style_no:
+            if not style_no and not product_name:
                 errors.append(
                     {
-                        "code": "style_no_required",
-                        "field": f"items.{index}.style_no",
-                        "message": "Style number is required for each clothing wholesale item",
+                        "code": "item_identity_required",
+                        "field": f"items.{index}",
+                        "message": "Each item should have either style_no or product_name",
                     }
                 )
 

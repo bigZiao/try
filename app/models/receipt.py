@@ -15,6 +15,7 @@ class Receipt(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True, default=1)
     batch_id: Mapped[int | None] = mapped_column(ForeignKey("receipt_batches.id"), nullable=True, index=True)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False, default="image", index=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     image_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     image_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

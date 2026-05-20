@@ -15,6 +15,7 @@ def ensure_dev_sqlite_schema() -> None:
         add_columns = {
             "user_id": "INTEGER NOT NULL DEFAULT 1",
             "batch_id": "INTEGER",
+            "source_type": "VARCHAR(30) NOT NULL DEFAULT 'image'",
             "image_sha256": "VARCHAR(64) NOT NULL DEFAULT ''",
             "duplicate_of_receipt_id": "INTEGER",
             "duplicate_status": "VARCHAR(50) NOT NULL DEFAULT 'unique'",

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.receipt import Receipt
 from app.models.receipt_batch import ReceiptBatch
-from app.schemas.receipt import BatchReceiptUploadResult, ReceiptBatchResponse
+from app.schemas.receipt import BatchReceiptUploadResult, ReceiptBatchListResponse, ReceiptBatchResponse, ReceiptBatchSummaryResponse
 from app.services.excel_exporter import ExcelExportService
 from app.services.pipeline import ReceiptPipelineService
 from app.services.task_queue import ReceiptTaskQueueService
@@ -65,6 +65,30 @@ async def create_batch(
     if task_ids_to_process:
         background_tasks.add_task(ReceiptTaskQueueService.process_tasks, task_ids_to_process)
     return _batch_response(batch, upload_results, db)
+
+
+@router.get("", response_model=ReceiptBatchListResponse)
+def list_batches(
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    user_id: int = Depends(current_user_id),
+    db: Session = Depends(get_db),
+) -> ReceiptBatchListResponse:
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+    query = db.query(ReceiptBatch).filter(ReceiptBatch.user_id == user_id)
+    if status:
+        query = query.filter(ReceiptBatch.status == status)
+
+    total = query.count()
+    batches = query.order_by(ReceiptBatch.id.desc()).offset(offset).limit(limit).all()
+    return ReceiptBatchListResponse(
+        items=[_batch_summary(batch, db) for batch in batches],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/{batch_id}", response_model=ReceiptBatchResponse)
@@ -177,3 +201,57 @@ def _batch_response(
         completed_count=completed_count,
         progress_percent=progress_percent,
     )
+
+
+def _batch_summary(batch: ReceiptBatch, db: Session) -> ReceiptBatchSummaryResponse:
+    counts = _batch_counts(batch.id, db)
+    return ReceiptBatchSummaryResponse(
+        id=batch.id,
+        user_id=batch.user_id,
+        title=batch.title,
+        status=batch.status,
+        note=batch.note,
+        created_at=batch.created_at,
+        updated_at=batch.updated_at,
+        **counts,
+    )
+
+
+def _batch_counts(batch_id: int, db: Session) -> dict[str, int]:
+    rows = db.query(Receipt.status, Receipt.duplicate_status).filter(Receipt.batch_id == batch_id).all()
+    duplicate_count = 0
+    processing_count = 0
+    ready_for_review_count = 0
+    need_review_count = 0
+    confirmed_count = 0
+    failed_count = 0
+
+    for status, duplicate_status in rows:
+        if duplicate_status != "unique":
+            duplicate_count += 1
+            continue
+        if status in {"uploaded", "queued", "ocr_processing", "llm_structuring", "rule_checking", "vision_processing"}:
+            processing_count += 1
+        elif status == "ready_for_review":
+            ready_for_review_count += 1
+        elif status == "need_review":
+            need_review_count += 1
+        elif status == "confirmed":
+            confirmed_count += 1
+        elif status == "failed":
+            failed_count += 1
+
+    total_count = len(rows)
+    completed_count = duplicate_count + ready_for_review_count + need_review_count + confirmed_count + failed_count
+    progress_percent = int(completed_count * 100 / total_count) if total_count else 0
+    return {
+        "total_count": total_count,
+        "duplicate_count": duplicate_count,
+        "processing_count": processing_count,
+        "ready_for_review_count": ready_for_review_count,
+        "need_review_count": need_review_count,
+        "confirmed_count": confirmed_count,
+        "failed_count": failed_count,
+        "completed_count": completed_count,
+        "progress_percent": progress_percent,
+    }
