@@ -55,12 +55,19 @@ class ManualReceiptRequest(BaseModel):
     summary: dict[str, Any] = Field(default_factory=dict)
     payments: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    need_review: bool | None = None
+    confidence: float | int | str | None = None
+    confidence_reason: str | None = None
     note: str | None = None
 
 
 class VisionRerunRequest(BaseModel):
     apply_result: bool = False
     reason: str | None = None
+
+
+class ExportSelectedReceiptsRequest(BaseModel):
+    receipt_ids: list[int] = Field(default_factory=list)
 
 
 class ReceiptRunResponse(BaseModel):
@@ -100,6 +107,7 @@ class ReceiptResponse(BaseModel):
     final_json: dict[str, Any] | None = None
     validation_errors: list[Any] | None = None
     note: str | None = None
+    deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -115,9 +123,11 @@ class ReceiptListItemResponse(BaseModel):
     merchant_name: str | None = None
     order_date: str | None = None
     customer_name: str | None = None
+    display_item: str | None = None
     total_quantity: int | None = None
     total_amount: str | None = None
     need_review: bool | None = None
+    deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

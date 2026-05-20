@@ -19,6 +19,7 @@ def ensure_dev_sqlite_schema() -> None:
             "image_sha256": "VARCHAR(64) NOT NULL DEFAULT ''",
             "duplicate_of_receipt_id": "INTEGER",
             "duplicate_status": "VARCHAR(50) NOT NULL DEFAULT 'unique'",
+            "deleted_at": "DATETIME",
         }
         for column, definition in add_columns.items():
             if column not in receipt_columns:

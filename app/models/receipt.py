@@ -30,6 +30,7 @@ class Receipt(Base):
     validation_errors: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,

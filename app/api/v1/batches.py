@@ -103,7 +103,7 @@ def get_batch(
 
     receipts = (
         db.query(Receipt)
-        .filter(Receipt.batch_id == batch.id, Receipt.user_id == user_id)
+        .filter(Receipt.batch_id == batch.id, Receipt.user_id == user_id, Receipt.deleted_at.is_(None))
         .order_by(Receipt.id.asc())
         .all()
     )
@@ -135,6 +135,7 @@ def export_batch(
         .filter(
             Receipt.batch_id == batch.id,
             Receipt.user_id == user_id,
+            Receipt.deleted_at.is_(None),
             Receipt.status.in_(["ready_for_review", "confirmed"]),
         )
         .order_by(Receipt.id.asc())
@@ -153,7 +154,11 @@ def _batch_response(
     receipts: list[BatchReceiptUploadResult],
     db: Session,
 ) -> ReceiptBatchResponse:
-    rows = db.query(Receipt.status, Receipt.duplicate_status).filter(Receipt.batch_id == batch.id).all()
+    rows = (
+        db.query(Receipt.status, Receipt.duplicate_status)
+        .filter(Receipt.batch_id == batch.id, Receipt.deleted_at.is_(None))
+        .all()
+    )
     counts: dict[str, int] = {}
     duplicate_count = 0
     processing_count = 0
@@ -218,7 +223,11 @@ def _batch_summary(batch: ReceiptBatch, db: Session) -> ReceiptBatchSummaryRespo
 
 
 def _batch_counts(batch_id: int, db: Session) -> dict[str, int]:
-    rows = db.query(Receipt.status, Receipt.duplicate_status).filter(Receipt.batch_id == batch_id).all()
+    rows = (
+        db.query(Receipt.status, Receipt.duplicate_status)
+        .filter(Receipt.batch_id == batch_id, Receipt.deleted_at.is_(None))
+        .all()
+    )
     duplicate_count = 0
     processing_count = 0
     ready_for_review_count = 0

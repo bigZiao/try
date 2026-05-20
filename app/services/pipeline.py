@@ -130,14 +130,14 @@ class ReceiptPipelineService:
             image_path="",
             image_sha256=digest,
             duplicate_status="unique",
-            status="ready_for_review" if not errors else "need_review",
+            status=self._status_for_validated_json(normalized_json, errors),
             final_json=normalized_json,
             validation_errors=errors,
             note=payload.get("note"),
         )
         self.db.add(receipt)
         self.db.commit()
-        if receipt.status == "ready_for_review":
+        if receipt.status == "confirmed":
             self._sync_receipt_items(receipt)
             self.db.commit()
         self.db.refresh(receipt)
@@ -186,7 +186,7 @@ class ReceiptPipelineService:
             receipt.final_json = result["final_json"]
             receipt.validation_errors = result["validation_errors"]
             receipt.status = result["status"]
-            if receipt.final_json and receipt.status == "ready_for_review":
+            if receipt.final_json and receipt.status == "confirmed":
                 self._sync_receipt_items(receipt)
             self.db.commit()
             self.db.refresh(receipt)
@@ -298,7 +298,7 @@ class ReceiptPipelineService:
             receipt.final_json = result["final_json"]
             receipt.validation_errors = result["validation_errors"]
             receipt.status = result["status"]
-            if receipt.final_json and receipt.status == "ready_for_review":
+            if receipt.final_json and receipt.status == "confirmed":
                 self._sync_receipt_items(receipt)
 
         self.db.commit()
@@ -320,7 +320,7 @@ class ReceiptPipelineService:
                 "corrected_json": None,
                 "final_json": normalized_structured,
                 "validation_errors": [],
-                "status": "ready_for_review",
+                "status": self._status_for_validated_json(normalized_structured, []),
             }
 
         corrected_json = self.normalizer.normalize(
@@ -340,12 +340,13 @@ class ReceiptPipelineService:
             )
         )
         second_errors = self.rules.validate(corrected_json)
+        final_json = corrected_json if not second_errors else normalized_structured
         return {
             "structured_json": normalized_structured,
             "corrected_json": corrected_json,
-            "final_json": corrected_json if not second_errors else normalized_structured,
+            "final_json": final_json,
             "validation_errors": second_errors,
-            "status": "ready_for_review" if not second_errors else "need_review",
+            "status": self._status_for_validated_json(final_json, second_errors),
         }
 
     def confirm(self, receipt_id: int, final_json: dict[str, Any]) -> Receipt:
@@ -431,10 +432,7 @@ class ReceiptPipelineService:
         errors = self.rules.validate(normalized_json)
         receipt.final_json = normalized_json
         receipt.validation_errors = errors
-        if confirmed:
-            receipt.status = "confirmed" if not errors else "need_review"
-        else:
-            receipt.status = "ready_for_review" if not errors else "need_review"
+        receipt.status = self._status_for_validated_json(normalized_json, errors)
         if receipt.status in {"ready_for_review", "confirmed"}:
             self._sync_receipt_items(receipt)
         else:
@@ -443,6 +441,13 @@ class ReceiptPipelineService:
         self._refresh_batch_status(receipt.batch_id)
         self.db.refresh(receipt)
         return receipt
+
+    def _status_for_validated_json(self, data: dict[str, Any], errors: list[dict[str, Any]]) -> str:
+        if errors:
+            return "need_review"
+        if data.get("need_review") is True:
+            return "need_review"
+        return "confirmed"
 
     def _sync_receipt_items(self, receipt: Receipt) -> None:
         data = receipt.final_json or {}
@@ -478,7 +483,7 @@ class ReceiptPipelineService:
         statuses = [
             row[0]
             for row in self.db.query(Receipt.status)
-            .filter(Receipt.batch_id == batch_id, Receipt.duplicate_status == "unique")
+            .filter(Receipt.batch_id == batch_id, Receipt.duplicate_status == "unique", Receipt.deleted_at.is_(None))
             .all()
         ]
         if not statuses:

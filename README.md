@@ -52,7 +52,8 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 
 - `POST /api/v1/receipts` upload one image, create a receipt task, and process it in the background
 - `POST /api/v1/receipts/manual` create a manual receipt without an image; `customer_name` defaults to the current owner
-- `GET /api/v1/receipts` list the current owner's receipts; supports `status`, `batch_id`, `limit`, `offset`
+- `GET /api/v1/receipts` list the current owner's receipts; supports `status`, `batch_id`, `source_type`, `start_date`, `end_date`, `merchant_name`, `keyword`, `include_deleted`, `limit`, `offset`
+- `DELETE /api/v1/receipts/{receipt_id}` soft-delete one receipt; deleted receipts are excluded from lists and exports by default
 - `GET /api/v1/receipts/{receipt_id}` get saved pipeline data
 - `GET /api/v1/receipts/{receipt_id}/image` get the original uploaded image for review UI
 - `POST /api/v1/receipts/{receipt_id}/confirm` submit final confirmed JSON
