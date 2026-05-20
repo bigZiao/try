@@ -16,6 +16,7 @@ from app.schemas.receipt import (
 )
 from app.services.excel_exporter import ExcelExportService
 from app.services.pipeline import ReceiptPipelineService
+from app.services.task_queue import ReceiptTaskQueueService
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
 
@@ -34,7 +35,8 @@ async def upload_receipt(
     service = ReceiptPipelineService(db)
     receipt, duplicate = await service.create_pending_receipt(file, user_id=user_id)
     if not duplicate:
-        background_tasks.add_task(ReceiptPipelineService.process_receipt_task, receipt.id)
+        task = ReceiptTaskQueueService(db).enqueue_receipt(receipt)
+        background_tasks.add_task(ReceiptTaskQueueService.process_task, task.id)
     return receipt
 
 
@@ -155,7 +157,8 @@ def retry_receipt(
 
     service = ReceiptPipelineService(db)
     receipt = service.retry(receipt_id)
-    background_tasks.add_task(ReceiptPipelineService.process_receipt_task, receipt.id)
+    task = ReceiptTaskQueueService(db).enqueue_receipt(receipt)
+    background_tasks.add_task(ReceiptTaskQueueService.process_task, task.id)
     return receipt
 
 

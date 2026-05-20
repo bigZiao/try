@@ -18,6 +18,8 @@ from app.models.receipt import Receipt
 from app.models.receipt_run import ReceiptRun
 from app.models.user import User
 from app.services.normalizer import ReceiptNormalizer
+from app.services.image_preprocessor import ImagePreprocessService
+from app.services.call_logger import ProviderCallLogger
 from app.services.rule_engine import RuleEngine
 from app.services.storage import ImageStorageService
 
@@ -36,14 +38,16 @@ def _get_limiter(name: str, limit: int) -> asyncio.Semaphore:
 
 
 class ReceiptPipelineService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, task_id: int | None = None) -> None:
         self.db = db
+        self.task_id = task_id
         self.storage = ImageStorageService()
         self.ocr = get_ocr_adapter()
         self.llm = get_llm_adapter()
         self.vision_llm = get_vision_llm_adapter()
         self.rules = RuleEngine()
         self.normalizer = ReceiptNormalizer()
+        self.image_preprocessor = ImagePreprocessService()
         self.settings = get_settings()
 
     def ensure_user(self, user_id: int) -> User:
@@ -54,7 +58,7 @@ class ReceiptPipelineService:
         if user_id != 1:
             raise HTTPException(status_code=404, detail="User not found")
 
-        user = User(id=1, display_name="默认老板")
+        user = User(id=1, display_name="默认老板", role="owner", status="active", is_admin=True)
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
@@ -108,25 +112,38 @@ class ReceiptPipelineService:
             raise HTTPException(status_code=404, detail="Receipt not found")
         image_path = Path(receipt.image_path)
         try:
+            ocr_image_path = self.image_preprocessor.prepare_for_ocr(image_path)
+            logger = ProviderCallLogger(self.db, receipt_id=receipt.id, task_id=self.task_id)
             receipt.status = "ocr_processing"
             self.db.commit()
 
-            receipt.ocr_json = await self._limited(
-                "ocr",
-                self.settings.ocr_concurrency,
-                lambda: self.ocr.recognize(image_path),
+            receipt.ocr_json = await logger.record(
+                provider=self.settings.ocr_provider,
+                stage="ocr",
+                model=self.settings.baidu_endpoint if self.settings.ocr_provider.lower() == "baidu" else "mock",
+                factory=lambda: self._limited(
+                    "ocr",
+                    self.settings.ocr_concurrency,
+                    lambda: self.ocr.recognize(ocr_image_path),
+                ),
+                metadata={"image_path": str(ocr_image_path)},
             )
             receipt.status = "llm_structuring"
             self.db.commit()
 
             structured_json = self.normalizer.normalize(
-                await self._limited(
-                    "llm",
-                    self.settings.llm_concurrency,
-                    lambda: self.llm.structure_receipt(receipt.ocr_json),
+                await logger.record(
+                    provider=self.settings.llm_provider,
+                    stage="llm_first_round",
+                    model=self.settings.llm_model,
+                    factory=lambda: self._limited(
+                        "llm",
+                        self.settings.llm_concurrency,
+                        lambda: self.llm.structure_receipt(receipt.ocr_json),
+                    ),
                 )
             )
-            result = await self._run_rule_and_correction(structured_json, receipt.ocr_json)
+            result = await self._run_rule_and_correction(structured_json, receipt.ocr_json, receipt.id)
             receipt.structured_json = result["structured_json"]
             receipt.corrected_json = result["corrected_json"]
             receipt.final_json = result["final_json"]
@@ -202,18 +219,26 @@ class ReceiptPipelineService:
         if not receipt.ocr_json:
             raise HTTPException(status_code=400, detail="Receipt has no OCR JSON")
 
+        vision_image_path = self.image_preprocessor.prepare_for_ocr(Path(receipt.image_path))
+        logger = ProviderCallLogger(self.db, receipt_id=receipt.id, task_id=self.task_id)
         structured_json = self.normalizer.normalize(
-            await self._limited(
-                "vision_llm",
-                self.settings.vision_llm_concurrency,
-                lambda: self.vision_llm.structure_receipt(
-                    image_path=Path(receipt.image_path),
-                    ocr_json=receipt.ocr_json,
-                    reason=reason,
+            await logger.record(
+                provider=self.settings.vision_llm_provider,
+                stage="vision_first_round",
+                model=self.settings.vision_llm_model,
+                factory=lambda: self._limited(
+                    "vision_llm",
+                    self.settings.vision_llm_concurrency,
+                    lambda: self.vision_llm.structure_receipt(
+                        image_path=vision_image_path,
+                        ocr_json=receipt.ocr_json,
+                        reason=reason,
+                    ),
                 ),
+                metadata={"image_path": str(vision_image_path), "reason": reason},
             )
         )
-        result = await self._run_rule_and_correction(structured_json, receipt.ocr_json)
+        result = await self._run_rule_and_correction(structured_json, receipt.ocr_json, receipt.id)
 
         run = ReceiptRun(
             receipt_id=receipt.id,
@@ -247,6 +272,7 @@ class ReceiptPipelineService:
         self,
         structured_json: dict[str, Any],
         ocr_json: dict[str, Any],
+        receipt_id: int | None = None,
     ) -> dict[str, Any]:
         normalized_structured = self.normalizer.normalize(structured_json)
         first_errors = self.rules.validate(normalized_structured)
@@ -261,13 +287,18 @@ class ReceiptPipelineService:
             }
 
         corrected_json = self.normalizer.normalize(
-            await self._limited(
-                "llm",
-                self.settings.llm_concurrency,
-                lambda: self.llm.correct_receipt(
-                    normalized_structured,
-                    first_errors,
-                    ocr_json,
+            await ProviderCallLogger(self.db, receipt_id=receipt_id, task_id=self.task_id).record(
+                provider=self.settings.llm_provider,
+                stage="llm_second_round",
+                model=self.settings.llm_model,
+                factory=lambda: self._limited(
+                    "llm",
+                    self.settings.llm_concurrency,
+                    lambda: self.llm.correct_receipt(
+                        normalized_structured,
+                        first_errors,
+                        ocr_json,
+                    ),
                 ),
             )
         )
@@ -294,6 +325,7 @@ class ReceiptPipelineService:
         summary: dict[str, Any] | None = None,
     ) -> Receipt:
         receipt = self._get_receipt_or_404(receipt_id)
+        self._ensure_editable(receipt)
         data = self._editable_json(receipt)
         for key, value in fields.items():
             data[key] = value
@@ -304,6 +336,7 @@ class ReceiptPipelineService:
 
     def add_review_item(self, receipt_id: int, item: dict[str, Any]) -> Receipt:
         receipt = self._get_receipt_or_404(receipt_id)
+        self._ensure_editable(receipt)
         data = self._editable_json(receipt)
         items = data.get("items") if isinstance(data.get("items"), list) else []
         items.append(item)
@@ -312,6 +345,7 @@ class ReceiptPipelineService:
 
     def update_review_item(self, receipt_id: int, item_index: int, item: dict[str, Any]) -> Receipt:
         receipt = self._get_receipt_or_404(receipt_id)
+        self._ensure_editable(receipt)
         data = self._editable_json(receipt)
         items = data.get("items") if isinstance(data.get("items"), list) else []
         if item_index < 0 or item_index >= len(items):
@@ -324,6 +358,7 @@ class ReceiptPipelineService:
 
     def delete_review_item(self, receipt_id: int, item_index: int) -> Receipt:
         receipt = self._get_receipt_or_404(receipt_id)
+        self._ensure_editable(receipt)
         data = self._editable_json(receipt)
         items = data.get("items") if isinstance(data.get("items"), list) else []
         if item_index < 0 or item_index >= len(items):
@@ -345,6 +380,10 @@ class ReceiptPipelineService:
         items = data.get("items")
         data["items"] = [dict(item) for item in items if isinstance(item, dict)] if isinstance(items, list) else []
         return data
+
+    def _ensure_editable(self, receipt: Receipt) -> None:
+        if receipt.status == "confirmed":
+            raise HTTPException(status_code=409, detail="Confirmed receipt is locked")
 
     def _save_review_json(
         self,

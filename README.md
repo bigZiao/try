@@ -23,6 +23,18 @@ LLM_PROVIDER=mock
 UPLOAD_DIR=uploads
 ```
 
+OCR and vision LLM calls use a derived JPEG copy by default. The original upload is still preserved for review and future reprocessing.
+
+```env
+OCR_IMAGE_PREPROCESS_ENABLED=true
+OCR_IMAGE_DIR=uploads/ocr_images
+OCR_IMAGE_MAX_SIDE=2400
+OCR_IMAGE_JPEG_QUALITY=92
+OCR_IMAGE_MAX_BYTES=4000000
+```
+
+Only the derived copy is converted, resized, and compressed. The resize is proportional and does not crop the receipt.
+
 To test with a saved Baidu OCR response:
 
 ```bash
@@ -79,6 +91,44 @@ LLM_CONCURRENCY=2
 VISION_LLM_CONCURRENCY=1
 ```
 
+The MVP now records receipt work as database-backed tasks before running the in-process worker. This keeps the API shape ready for Redis/RQ/Celery later while already supporting retries, stale-task recovery, and progress inspection:
+
+```env
+RECEIPT_TASK_MAX_ATTEMPTS=3
+RECEIPT_TASK_STALE_MINUTES=30
+```
+
+Useful operational endpoints:
+
+- `GET /api/v1/tasks` list recent receipt tasks
+- `POST /api/v1/tasks/recover-stale` reset stale running tasks and enqueue them again
+- `GET /api/v1/tasks/calls` list OCR/LLM call logs with status, duration, model, token usage, and error message
+
+Optional token cost estimates can be enabled by setting per-million token prices:
+
+```env
+LLM_PROMPT_TOKEN_PRICE_PER_MILLION=0
+LLM_COMPLETION_TOKEN_PRICE_PER_MILLION=0
+```
+
+Mini-program login starts with:
+
+```http
+POST /api/v1/auth/wechat-login
+```
+
+Local development uses `WECHAT_LOGIN_PROVIDER=mock`. Production should set `WECHAT_APP_ID` and `WECHAT_APP_SECRET`. The response returns this backend's `user.id`; the mini-program should send it as `X-User-Id` in later receipt and batch requests.
+
+Admin endpoints can be protected with:
+
+```env
+ADMIN_TOKEN=change-me
+```
+
+Then call admin/task endpoints with `X-Admin-Token`.
+
+The local admin page at `/debug/receipts/{receipt_id}` supports side-by-side image review, receipt-level field edits, item row edits, adding/deleting item rows, and final confirmation. Once a receipt is confirmed, edit APIs reject further changes with `409 Confirmed receipt is locked`.
+
 Core tables:
 
 - `users`: owner accounts.
@@ -86,6 +136,8 @@ Core tables:
 - `receipts`: one receipt image and the full OCR/LLM/rule pipeline data.
 - `receipt_items`: structured item rows synced from confirmed or review-ready JSON.
 - `receipt_runs`: rerun records for difficult receipts.
+- `receipt_tasks`: queued/running/succeeded/failed processing tasks.
+- `provider_call_logs`: OCR/LLM provider calls, duration, model, token usage, and failures.
 
 ## Database Migrations
 

@@ -7,6 +7,7 @@ class ReceiptNormalizer:
             return data
 
         normalized = dict(data)
+        normalized.pop("_usage", None)
         normalized.setdefault("warnings", [])
         normalized.setdefault("payments", [])
         normalized.setdefault("need_review", None)

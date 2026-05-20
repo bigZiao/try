@@ -207,7 +207,11 @@ class DeepSeekLLMAdapter(LLMAdapter):
             raise RuntimeError("DeepSeek request failed") from last_error
 
         content = data["choices"][0]["message"].get("content") or ""
-        return parse_json_content(content)
+        result = parse_json_content(content)
+        usage = data.get("usage")
+        if isinstance(result, dict) and isinstance(usage, dict):
+            result["_usage"] = usage
+        return result
 
 
 def get_llm_adapter() -> LLMAdapter:

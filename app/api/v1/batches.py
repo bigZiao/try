@@ -8,6 +8,7 @@ from app.models.receipt_batch import ReceiptBatch
 from app.schemas.receipt import BatchReceiptUploadResult, ReceiptBatchResponse
 from app.services.excel_exporter import ExcelExportService
 from app.services.pipeline import ReceiptPipelineService
+from app.services.task_queue import ReceiptTaskQueueService
 
 router = APIRouter(prefix="/batches", tags=["batches"])
 
@@ -32,7 +33,7 @@ async def create_batch(
     db.refresh(batch)
 
     upload_results: list[BatchReceiptUploadResult] = []
-    receipt_ids_to_process: list[int] = []
+    task_ids_to_process: list[int] = []
     for file in files:
         receipt, duplicate = await service.create_pending_receipt(file, user_id=user_id, batch_id=batch.id)
         if duplicate:
@@ -55,13 +56,14 @@ async def create_batch(
                 duplicate=False,
             )
         )
-        receipt_ids_to_process.append(receipt.id)
+        task = ReceiptTaskQueueService(db).enqueue_receipt(receipt)
+        task_ids_to_process.append(task.id)
 
     batch.status = "queued" if any(not result.duplicate for result in upload_results) else "empty"
     db.commit()
     db.refresh(batch)
-    if receipt_ids_to_process:
-        background_tasks.add_task(ReceiptPipelineService.process_receipts_task, receipt_ids_to_process)
+    if task_ids_to_process:
+        background_tasks.add_task(ReceiptTaskQueueService.process_tasks, task_ids_to_process)
     return _batch_response(batch, upload_results, db)
 
 

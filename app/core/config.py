@@ -27,6 +27,16 @@ load_powershell_env()
 class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
     upload_dir: Path = Path(os.getenv("UPLOAD_DIR", "uploads"))
+    ocr_image_preprocess_enabled: bool = os.getenv("OCR_IMAGE_PREPROCESS_ENABLED", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    ocr_image_dir: Path = Path(os.getenv("OCR_IMAGE_DIR", "uploads/ocr_images"))
+    ocr_image_max_side: int = int(os.getenv("OCR_IMAGE_MAX_SIDE", "2400"))
+    ocr_image_jpeg_quality: int = int(os.getenv("OCR_IMAGE_JPEG_QUALITY", "92"))
+    ocr_image_max_bytes: int = int(os.getenv("OCR_IMAGE_MAX_BYTES", "4000000"))
     ocr_provider: str = os.getenv("OCR_PROVIDER", "mock")
     ocr_mock_json_path: Path | None = (
         Path(os.getenv("OCR_MOCK_JSON_PATH")) if os.getenv("OCR_MOCK_JSON_PATH") else None
@@ -59,6 +69,15 @@ class Settings:
     ocr_concurrency: int = int(os.getenv("OCR_CONCURRENCY", "5"))
     llm_concurrency: int = int(os.getenv("LLM_CONCURRENCY", "2"))
     vision_llm_concurrency: int = int(os.getenv("VISION_LLM_CONCURRENCY", "1"))
+    receipt_task_max_attempts: int = int(os.getenv("RECEIPT_TASK_MAX_ATTEMPTS", "3"))
+    receipt_task_stale_minutes: int = int(os.getenv("RECEIPT_TASK_STALE_MINUTES", "30"))
+
+    wechat_app_id: str | None = os.getenv("WECHAT_APP_ID")
+    wechat_app_secret: str | None = os.getenv("WECHAT_APP_SECRET")
+    wechat_login_provider: str = os.getenv("WECHAT_LOGIN_PROVIDER", "mock")
+    admin_token: str | None = os.getenv("ADMIN_TOKEN")
+    llm_prompt_token_price_per_million: float = float(os.getenv("LLM_PROMPT_TOKEN_PRICE_PER_MILLION", "0"))
+    llm_completion_token_price_per_million: float = float(os.getenv("LLM_COMPLETION_TOKEN_PRICE_PER_MILLION", "0"))
 
 
 @lru_cache
