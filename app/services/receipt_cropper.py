@@ -5,6 +5,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.config import get_settings
 from app.models.receipt import Receipt
+from app.services.image_preprocessor import ImagePreprocessService
 
 
 class ReceiptCropService:
@@ -40,32 +41,71 @@ class ReceiptCropService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self.image_preprocessor = ImagePreprocessService()
 
     def key_image_path(self, receipt: Receipt) -> Path:
-        source_path = Path(receipt.image_path)
+        return Path(self.key_image_info(receipt)["path"])
+
+    def key_image_info(self, receipt: Receipt) -> dict[str, Any]:
+        source_path = self.image_preprocessor.prepare_for_ocr(Path(receipt.image_path))
         target_dir = self.settings.crop_image_dir
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / f"{receipt.id}_items.jpg"
 
-        if target_path.exists() and source_path.exists() and target_path.stat().st_mtime >= source_path.stat().st_mtime:
-            return target_path
-
         crop_box = self._compute_crop_box(receipt.ocr_json or {})
-        if crop_box is None:
-            return source_path
 
         try:
             with Image.open(source_path) as image:
                 image = ImageOps.exif_transpose(image).convert("RGB")
                 width, height = image.size
+                if crop_box is None:
+                    return self._image_info(
+                        path=source_path,
+                        crop_box=(0, 0, width, height),
+                        image_width=width,
+                        image_height=height,
+                        source_width=width,
+                        source_height=height,
+                        source="fallback_original",
+                    )
+
                 left, top, right, bottom = self._clamp_box(crop_box, width, height)
                 if right - left < 80 or bottom - top < 80:
-                    return source_path
-                image.crop((left, top, right, bottom)).save(target_path, format="JPEG", quality=94, optimize=True)
-        except (UnidentifiedImageError, OSError):
-            return source_path
+                    return self._image_info(
+                        path=source_path,
+                        crop_box=(0, 0, width, height),
+                        image_width=width,
+                        image_height=height,
+                        source_width=width,
+                        source_height=height,
+                        source="fallback_original",
+                    )
 
-        return target_path
+                if not (
+                    target_path.exists()
+                    and source_path.exists()
+                    and target_path.stat().st_mtime >= source_path.stat().st_mtime
+                ):
+                    image.crop((left, top, right, bottom)).save(target_path, format="JPEG", quality=94, optimize=True)
+                return self._image_info(
+                    path=target_path,
+                    crop_box=(left, top, right, bottom),
+                    image_width=right - left,
+                    image_height=bottom - top,
+                    source_width=width,
+                    source_height=height,
+                    source="ocr_blocks",
+                )
+        except (UnidentifiedImageError, OSError):
+            return self._image_info(
+                path=source_path,
+                crop_box=None,
+                image_width=None,
+                image_height=None,
+                source_width=None,
+                source_height=None,
+                source="fallback_original",
+            )
 
     def _compute_crop_box(self, ocr_json: dict[str, Any]) -> tuple[int, int, int, int] | None:
         blocks = self._blocks_with_boxes(ocr_json)
@@ -121,7 +161,7 @@ class ReceiptCropService:
             return []
 
         blocks: list[dict[str, Any]] = []
-        for block in words_result:
+        for index, block in enumerate(words_result):
             if not isinstance(block, dict):
                 continue
             location = block.get("location")
@@ -137,9 +177,12 @@ class ReceiptCropService:
             text = str(block.get("words") or "")
             blocks.append(
                 {
+                    "block_index": block.get("block_index", index),
                     "text": text,
                     "left": left,
                     "top": top,
+                    "width": width,
+                    "height": height,
                     "right": left + width,
                     "bottom": top + height,
                 }
@@ -158,3 +201,29 @@ class ReceiptCropService:
             max(1, min(right, width)),
             max(1, min(bottom, height)),
         )
+
+    def _image_info(
+        self,
+        path: Path,
+        crop_box: tuple[int, int, int, int] | None,
+        image_width: int | None,
+        image_height: int | None,
+        source_width: int | None,
+        source_height: int | None,
+        source: str,
+    ) -> dict[str, Any]:
+        return {
+            "path": path,
+            "crop_box": self._box_to_dict(crop_box),
+            "image_width": image_width,
+            "image_height": image_height,
+            "source_image_width": source_width,
+            "source_image_height": source_height,
+            "source": source,
+        }
+
+    def _box_to_dict(self, box: tuple[int, int, int, int] | None) -> dict[str, int] | None:
+        if box is None:
+            return None
+        left, top, right, bottom = box
+        return {"left": left, "top": top, "right": right, "bottom": bottom}

@@ -21,6 +21,7 @@ from app.schemas.receipt import (
     VisionRerunRequest,
 )
 from app.services.excel_exporter import ExcelExportService
+from app.services.ocr_overlay import OcrOverlayService
 from app.services.pipeline import ReceiptPipelineService
 from app.services.receipt_cropper import ReceiptCropService
 from app.services.task_queue import ReceiptTaskQueueService
@@ -321,6 +322,31 @@ def get_receipt_key_image(
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Receipt image not found")
     return FileResponse(image_path, media_type="image/jpeg")
+
+
+@router.get("/{receipt_id}/ocr-overlay")
+def get_receipt_ocr_overlay(
+    receipt_id: int,
+    view: str = "key",
+    scope: str = "key",
+    user_id: int = Depends(current_user_id),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    if view != "key":
+        raise HTTPException(status_code=400, detail="Only key view is supported")
+    if scope not in {"key", "all"}:
+        raise HTTPException(status_code=400, detail="scope must be key or all")
+
+    receipt = db.get(Receipt, receipt_id)
+    if receipt is None or receipt.user_id != user_id or receipt.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+
+    if receipt.source_type == "manual" or not receipt.image_path:
+        raise HTTPException(status_code=404, detail="Manual receipt has no image")
+    if not receipt.ocr_json:
+        raise HTTPException(status_code=404, detail="Receipt has no OCR JSON")
+
+    return OcrOverlayService().key_overlay(receipt, scope=scope)
 
 
 @router.post("/{receipt_id}/vision-rerun", response_model=ReceiptRunResponse)

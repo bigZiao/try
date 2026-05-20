@@ -147,6 +147,8 @@ class ReceiptPipelineService:
         receipt = self.db.get(Receipt, receipt_id)
         if receipt is None:
             raise HTTPException(status_code=404, detail="Receipt not found")
+        if self._has_processed_result(receipt):
+            return receipt
         image_path = Path(receipt.image_path)
         try:
             ocr_image_path = self.image_preprocessor.prepare_for_ocr(image_path)
@@ -448,6 +450,10 @@ class ReceiptPipelineService:
         if data.get("need_review") is True:
             return "need_review"
         return "confirmed"
+
+    def _has_processed_result(self, receipt: Receipt) -> bool:
+        has_result = bool(receipt.final_json or receipt.corrected_json or receipt.structured_json)
+        return receipt.status in {"ready_for_review", "need_review", "confirmed"} and has_result
 
     def _sync_receipt_items(self, receipt: Receipt) -> None:
         data = receipt.final_json or {}

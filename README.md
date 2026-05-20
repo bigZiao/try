@@ -57,6 +57,7 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 - `GET /api/v1/receipts/{receipt_id}` get saved pipeline data
 - `GET /api/v1/receipts/{receipt_id}/image` get the original uploaded image for review UI
 - `GET /api/v1/receipts/{receipt_id}/key-image` get the cropped key table/payment region for side-by-side review
+- `GET /api/v1/receipts/{receipt_id}/ocr-overlay?view=key&scope=key` get key OCR text blocks with coordinates relative to the key image; use `scope=all` to debug all blocks
 - `POST /api/v1/receipts/{receipt_id}/confirm` submit final confirmed JSON
 - `POST /api/v1/receipts/{receipt_id}/retry` rerun OCR + LLM from the original image after failure
 - `PATCH /api/v1/receipts/{receipt_id}/review-fields` update receipt-level fields or summary and rerun rules

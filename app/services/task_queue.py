@@ -10,11 +10,43 @@ from app.models.receipt_task import ReceiptTask
 
 
 class ReceiptTaskQueueService:
+    COMPLETED_STATUSES = {"ready_for_review", "need_review", "confirmed"}
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.settings = get_settings()
 
     def enqueue_receipt(self, receipt: Receipt, task_type: str = "process_receipt") -> ReceiptTask:
+        if self._has_processed_result(receipt):
+            existing_task = (
+                self.db.query(ReceiptTask)
+                .filter(
+                    ReceiptTask.receipt_id == receipt.id,
+                    ReceiptTask.task_type == task_type,
+                    ReceiptTask.status.in_(["queued", "running", "succeeded"]),
+                )
+                .order_by(ReceiptTask.id.desc())
+                .first()
+            )
+            if existing_task is not None:
+                return existing_task
+
+            task = ReceiptTask(
+                receipt_id=receipt.id,
+                user_id=receipt.user_id,
+                batch_id=receipt.batch_id,
+                task_type=task_type,
+                status="succeeded",
+                attempts=0,
+                max_attempts=max(self.settings.receipt_task_max_attempts, 1),
+                finished_at=datetime.utcnow(),
+                last_error="Skipped enqueue because receipt already has processed result",
+            )
+            self.db.add(task)
+            self.db.commit()
+            self.db.refresh(task)
+            return task
+
         task = ReceiptTask(
             receipt_id=receipt.id,
             user_id=receipt.user_id,
@@ -40,6 +72,12 @@ class ReceiptTaskQueueService:
         task_ids: list[int] = []
         for task in tasks:
             receipt = self.db.get(Receipt, task.receipt_id)
+            if receipt is not None and self._has_processed_result(receipt):
+                task.status = "succeeded"
+                task.locked_at = None
+                task.finished_at = datetime.utcnow()
+                task.last_error = "Skipped stale recovery because receipt already has processed result"
+                continue
             if task.attempts >= task.max_attempts:
                 task.status = "failed"
                 task.last_error = "Task exceeded max attempts after stale recovery"
@@ -112,3 +150,7 @@ class ReceiptTaskQueueService:
                 await ReceiptTaskQueueService.process_task(task_id)
 
         await asyncio.gather(*(worker(task_id) for task_id in task_ids))
+
+    def _has_processed_result(self, receipt: Receipt) -> bool:
+        has_result = bool(receipt.final_json or receipt.corrected_json or receipt.structured_json)
+        return receipt.status in self.COMPLETED_STATUSES and has_result
