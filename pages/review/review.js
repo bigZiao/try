@@ -7,7 +7,11 @@ Page({
     batchId: '',
     receipt: {},
     imageUrl: '',
+    keyImageUrl: '',
+    reviewImageUrl: '',
+    reviewImageLabel: '',
     form: fmt.normalizeFormSource({}),
+    previewItems: [],
     initialItemCount: 0,
     statusText: '加载中',
     statusTone: '',
@@ -48,19 +52,37 @@ Page({
       const receipt = await api.getReceipt(this.data.receiptId)
       const form = fmt.normalizeFormSource(receipt)
       let imageUrl = ''
+      let keyImageUrl = ''
+      let reviewImageUrl = ''
+      let reviewImageLabel = ''
       let hasImage = receipt.source_type !== 'manual'
       if (hasImage) {
         try {
-          imageUrl = await api.downloadReceiptImage(this.data.receiptId)
+          keyImageUrl = await api.downloadReceiptKeyImage(this.data.receiptId)
+          reviewImageUrl = keyImageUrl
+          reviewImageLabel = '关键区域图'
         } catch (ignore) {
-          hasImage = false
+          keyImageUrl = ''
+        }
+        try {
+          imageUrl = await api.downloadReceiptImage(this.data.receiptId)
+          if (!reviewImageUrl) {
+            reviewImageUrl = imageUrl
+            reviewImageLabel = '完整原图'
+          }
+        } catch (ignore) {
+          if (!reviewImageUrl) hasImage = false
         }
       }
       this.setData({
         receipt,
         imageUrl,
+        keyImageUrl,
+        reviewImageUrl,
+        reviewImageLabel,
         hasImage,
         form,
+        previewItems: this.buildPreviewItems(form.items),
         initialItemCount: fmt.sourceItemCount(receipt),
         statusText: fmt.statusText(receipt.status),
         statusTone: fmt.statusTone(receipt.status),
@@ -77,6 +99,19 @@ Page({
         showCancel: false
       })
     }
+  },
+
+  buildPreviewItems(items) {
+    return (items || []).map((item, index) => ({
+      index: index + 1,
+      name: item.product_name || item.style_no || '未命名商品',
+      style: item.style_no || '-',
+      color: item.color || '-',
+      size: item.size || '-',
+      quantity: item.quantity || '0',
+      unit_price: item.unit_price || '0',
+      amount: item.amount || '0'
+    }))
   },
 
   schedulePoll(receipt) {
@@ -107,11 +142,22 @@ Page({
     })
   },
 
+  previewKeyImage() {
+    if (!this.data.reviewImageUrl) return
+    wx.previewImage({
+      urls: [this.data.reviewImageUrl],
+      current: this.data.reviewImageUrl
+    })
+  },
+
   onHeaderInput(event) {
     if (this.data.isLocked) return
     const field = event.currentTarget.dataset.field
     this.setData({
       [`form.${field}`]: event.detail.value
+    })
+    this.setData({
+      previewItems: this.buildPreviewItems(this.data.form.items)
     })
   },
 
@@ -122,6 +168,9 @@ Page({
     this.setData({
       [`form.items[${index}].${field}`]: event.detail.value
     })
+    this.setData({
+      previewItems: this.buildPreviewItems(this.data.form.items)
+    })
   },
 
   addItem() {
@@ -130,6 +179,9 @@ Page({
     items.push(fmt.emptyItem())
     this.setData({
       'form.items': items
+    })
+    this.setData({
+      previewItems: this.buildPreviewItems(items)
     })
   },
 
@@ -141,6 +193,9 @@ Page({
     items.splice(index, 1)
     this.setData({
       'form.items': items
+    })
+    this.setData({
+      previewItems: this.buildPreviewItems(items)
     })
   },
 
@@ -173,6 +228,7 @@ Page({
     this.setData({
       receipt,
       form: nextForm,
+      previewItems: this.buildPreviewItems(nextForm.items),
       initialItemCount: fmt.sourceItemCount(receipt),
       statusText: fmt.statusText(receipt.status),
       statusTone: fmt.statusTone(receipt.status),
@@ -214,6 +270,7 @@ Page({
       this.setData({
         receipt,
         form,
+        previewItems: this.buildPreviewItems(form.items),
         initialItemCount: fmt.sourceItemCount(receipt),
         statusText: fmt.statusText(receipt.status),
         statusTone: fmt.statusTone(receipt.status),

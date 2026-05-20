@@ -1,0 +1,101 @@
+.small-action {
+  width: 172rpx;
+  height: 64rpx;
+  padding: 0;
+  line-height: 64rpx;
+}
+
+.filter-panel {
+  margin-bottom: 18rpx;
+  padding: 18rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.picker-input {
+  line-height: 44rpx;
+}
+
+.filter-actions {
+  margin-top: 16rpx;
+}
+
+.selected-count {
+  margin-top: 12rpx;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.history-card {
+  padding: 18rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.history-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #17201d;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  margin-top: 12rpx;
+  color: #6a7773;
+  font-size: 24rpx;
+}
+
+.history-actions {
+  justify-content: flex-end;
+  margin-top: 14rpx;
+}
+
+.mini-danger,
+.mini-link {
+  width: 104rpx;
+  height: 52rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 52rpx;
+}
+
+.mini-danger {
+  color: #b42318;
+  background: #fff;
+  border: 1rpx solid #ffc7c2;
+}
+
+.mini-link {
+  color: #0f766e;
+  background: #e4f3ef;
+}
+
+.select-dot {
+  flex: 0 0 44rpx;
+  width: 44rpx;
+  height: 44rpx;
+  color: #ffffff;
+  background: #ffffff;
+  border: 2rpx solid #9fb8b1;
+  border-radius: 50%;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 40rpx;
+  text-align: center;
+}
+
+.select-dot-on {
+  background: #0f766e;
+  border-color: #0f766e;
+}

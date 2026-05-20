@@ -423,10 +423,14 @@ function receiptImageUrl(receiptId) {
   return `${baseUrl()}/api/v1/receipts/${receiptId}/image`
 }
 
-function downloadReceiptImage(receiptId) {
+function receiptKeyImageUrl(receiptId) {
+  return `${baseUrl()}/api/v1/receipts/${receiptId}/key-image`
+}
+
+function downloadImageUrl(url, label) {
   return new Promise((resolve, reject) => {
     wx.downloadFile({
-      url: receiptImageUrl(receiptId),
+      url,
       header: {
         'X-User-Id': getAccessToken()
       },
@@ -435,13 +439,21 @@ function downloadReceiptImage(receiptId) {
           resolve(res.tempFilePath)
           return
         }
-        reject(new Error(`原图下载失败：${res.statusCode || '未知状态'}`))
+        reject(new Error(`${label || '图片'}下载失败：${res.statusCode || '未知状态'}`))
       },
       fail(error) {
         reject(new Error(normalizeError(error)))
       }
     })
   })
+}
+
+function downloadReceiptImage(receiptId) {
+  return downloadImageUrl(receiptImageUrl(receiptId), '原图')
+}
+
+function downloadReceiptKeyImage(receiptId) {
+  return downloadImageUrl(receiptKeyImageUrl(receiptId), '关键区域图')
 }
 
 function exportBatch(batchId) {
@@ -457,6 +469,70 @@ function exportBatch(batchId) {
           return
         }
         reject(new Error(`导出失败：${res.statusCode || '未知状态'}`))
+      },
+      fail(error) {
+        reject(new Error(normalizeError(error)))
+      }
+    })
+  })
+}
+
+function exportReceipt(receiptId) {
+  return new Promise((resolve, reject) => {
+    wx.downloadFile({
+      url: `${baseUrl()}/api/v1/receipts/${receiptId}/export.xlsx`,
+      header: {
+        'X-User-Id': getAccessToken()
+      },
+      success(res) {
+        if ((res.statusCode || 0) >= 200 && res.statusCode < 300) {
+          resolve(res.tempFilePath)
+          return
+        }
+        reject(new Error(`导出失败：${res.statusCode || '未知状态'}`))
+      },
+      fail(error) {
+        reject(new Error(normalizeError(error)))
+      }
+    })
+  })
+}
+
+function exportSelectedReceipts(receiptIds) {
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${baseUrl()}/api/v1/receipts/export-selected.xlsx`,
+      method: 'POST',
+      data: {
+        receipt_ids: receiptIds.map((id) => Number(id))
+      },
+      responseType: 'arraybuffer',
+      header: {
+        'X-User-Id': getAccessToken(),
+        'content-type': 'application/json'
+      },
+      success(res) {
+        if ((res.statusCode || 0) < 200 || res.statusCode >= 300) {
+          try {
+            const text = String.fromCharCode.apply(null, new Uint8Array(res.data || []))
+            reject(new Error(text || `导出失败：${res.statusCode || '未知状态'}`))
+          } catch (ignore) {
+            reject(new Error(`导出失败：${res.statusCode || '未知状态'}`))
+          }
+          return
+        }
+        const filePath = `${wx.env.USER_DATA_PATH}/selected-receipts-${Date.now()}.xlsx`
+        wx.getFileSystemManager().writeFile({
+          filePath,
+          data: res.data,
+          encoding: 'binary',
+          success() {
+            resolve(filePath)
+          },
+          fail(error) {
+            reject(new Error(normalizeError(error)))
+          }
+        })
       },
       fail(error) {
         reject(new Error(normalizeError(error)))
@@ -510,7 +586,11 @@ module.exports = {
   confirmReceipt,
   retryReceipt,
   receiptImageUrl,
+  receiptKeyImageUrl,
   downloadReceiptImage,
+  downloadReceiptKeyImage,
   exportBatch,
+  exportReceipt,
+  exportSelectedReceipts,
   exportAllReceipts
 }

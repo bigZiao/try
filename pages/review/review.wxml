@@ -18,9 +18,53 @@
   </view>
 
   <view class="section">
-    <view class="section-title">原图</view>
-    <image wx:if="{{hasImage}}" class="receipt-image" src="{{imageUrl}}" mode="widthFix" bindtap="previewOriginal" />
-    <view wx:else class="empty">手工录入账单没有原图。</view>
+    <view class="section-title">关键区域对比</view>
+    <view class="compare-layout">
+      <view class="key-image-panel">
+        <view class="compare-subtitle">{{reviewImageLabel || '关键区域图'}}</view>
+        <image wx:if="{{reviewImageUrl}}" class="key-image" src="{{reviewImageUrl}}" mode="widthFix" bindtap="previewKeyImage" />
+        <view wx:else class="empty key-empty">暂无图片。</view>
+        <button wx:if="{{imageUrl}}" class="btn btn-plain full-image-btn" bindtap="previewOriginal">查看完整原图</button>
+      </view>
+      <view class="items-panel">
+        <view class="compare-subtitle">商品明细</view>
+        <view wx:if="{{!previewItems.length}}" class="empty">暂无商品明细。</view>
+        <view wx:else class="preview-list">
+          <view wx:for="{{previewItems}}" wx:key="index" class="preview-card">
+            <view class="row-between preview-head">
+              <view class="preview-name">{{item.name}}</view>
+              <text class="preview-amount">¥{{item.amount}}</text>
+            </view>
+            <view class="preview-grid">
+              <view>
+                <text class="preview-label">款号</text>
+                <text class="preview-value">{{item.style}}</text>
+              </view>
+              <view>
+                <text class="preview-label">颜色</text>
+                <text class="preview-value">{{item.color}}</text>
+              </view>
+              <view>
+                <text class="preview-label">尺码</text>
+                <text class="preview-value">{{item.size}}</text>
+              </view>
+              <view>
+                <text class="preview-label">数量</text>
+                <text class="preview-value">{{item.quantity}}</text>
+              </view>
+              <view>
+                <text class="preview-label">单价</text>
+                <text class="preview-value">{{item.unit_price}}</text>
+              </view>
+              <view>
+                <text class="preview-label">金额</text>
+                <text class="preview-value">{{item.amount}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 
   <view class="section">

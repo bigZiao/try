@@ -22,11 +22,95 @@
   font-size: 24rpx;
 }
 
-.receipt-image {
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.compare-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18rpx;
+}
+
+.compare-subtitle {
+  margin-bottom: 12rpx;
+  color: #50605b;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.key-image-panel,
+.items-panel {
+  min-width: 0;
+}
+
+.key-image {
   width: 100%;
   min-height: 320rpx;
   background: #dfe8e5;
+  border: 1rpx solid #dce8e4;
   border-radius: 8rpx;
+}
+
+.key-empty {
+  min-height: 180rpx;
+}
+
+.full-image-btn {
+  margin-top: 14rpx;
+}
+
+.preview-card {
+  padding: 18rpx;
+  background: #f8fbfa;
+  border: 1rpx solid #dce8e4;
+  border-radius: 8rpx;
+}
+
+.preview-head {
+  margin-bottom: 14rpx;
+}
+
+.preview-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #0f2f2a;
+  font-size: 30rpx;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-amount {
+  color: #b42318;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}
+
+.preview-label {
+  display: block;
+  color: #6a7773;
+  font-size: 22rpx;
+}
+
+.preview-value {
+  display: block;
+  margin-top: 4rpx;
+  overflow: hidden;
+  color: #17201d;
+  font-size: 26rpx;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notes-field {

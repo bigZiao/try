@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/receipts/receipts",
     "pages/batch/batch",
     "pages/review/review",
     "pages/manual/manual"
