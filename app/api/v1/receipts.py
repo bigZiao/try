@@ -22,6 +22,7 @@ from app.schemas.receipt import (
 )
 from app.services.excel_exporter import ExcelExportService
 from app.services.pipeline import ReceiptPipelineService
+from app.services.receipt_cropper import ReceiptCropService
 from app.services.task_queue import ReceiptTaskQueueService
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
@@ -299,6 +300,27 @@ def get_receipt_image(
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Receipt image not found")
     return FileResponse(image_path)
+
+
+@router.get("/{receipt_id}/key-image")
+def get_receipt_key_image(
+    receipt_id: int,
+    user_id: int = Depends(current_user_id),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    receipt = db.get(Receipt, receipt_id)
+    if receipt is None or receipt.user_id != user_id or receipt.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+
+    if receipt.source_type == "manual" or not receipt.image_path:
+        raise HTTPException(status_code=404, detail="Manual receipt has no image")
+    if not receipt.ocr_json:
+        raise HTTPException(status_code=404, detail="Receipt has no OCR JSON")
+
+    image_path = ReceiptCropService().key_image_path(receipt)
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Receipt image not found")
+    return FileResponse(image_path, media_type="image/jpeg")
 
 
 @router.post("/{receipt_id}/vision-rerun", response_model=ReceiptRunResponse)

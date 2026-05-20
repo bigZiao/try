@@ -34,6 +34,7 @@ class Settings:
         "on",
     }
     ocr_image_dir: Path = Path(os.getenv("OCR_IMAGE_DIR", "uploads/ocr_images"))
+    crop_image_dir: Path = Path(os.getenv("CROP_IMAGE_DIR", "uploads/crops"))
     ocr_image_max_side: int = int(os.getenv("OCR_IMAGE_MAX_SIDE", "2400"))
     ocr_image_jpeg_quality: int = int(os.getenv("OCR_IMAGE_JPEG_QUALITY", "92"))
     ocr_image_max_bytes: int = int(os.getenv("OCR_IMAGE_MAX_BYTES", "4000000"))

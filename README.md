@@ -56,6 +56,7 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/receipt_db
 - `DELETE /api/v1/receipts/{receipt_id}` soft-delete one receipt; deleted receipts are excluded from lists and exports by default
 - `GET /api/v1/receipts/{receipt_id}` get saved pipeline data
 - `GET /api/v1/receipts/{receipt_id}/image` get the original uploaded image for review UI
+- `GET /api/v1/receipts/{receipt_id}/key-image` get the cropped key table/payment region for side-by-side review
 - `POST /api/v1/receipts/{receipt_id}/confirm` submit final confirmed JSON
 - `POST /api/v1/receipts/{receipt_id}/retry` rerun OCR + LLM from the original image after failure
 - `PATCH /api/v1/receipts/{receipt_id}/review-fields` update receipt-level fields or summary and rerun rules
