@@ -22,17 +22,19 @@
         <view class="muted">最近 20 张账单</view>
       </view>
       <view class="row">
-        <button class="btn btn-primary small-export" loading="{{exportingSelected}}" bindtap="exportSelectedReceipts">导出</button>
+        <button wx:if="{{!exportMode}}" class="btn btn-secondary small-export-select" bindtap="startExportSelect">选择导出</button>
+        <button wx:if="{{exportMode}}" class="btn btn-primary small-export" loading="{{exportingSelected}}" bindtap="exportSelectedReceipts">导出</button>
+        <button wx:if="{{exportMode}}" class="btn btn-plain small-cancel" disabled="{{exportingSelected}}" bindtap="cancelExportSelect">取消</button>
         <button class="btn btn-plain small-login" bindtap="openReceiptsPage">更多</button>
       </view>
     </view>
-    <view class="muted selected-note">已选 {{selectedReceiptIds.length}} 张。点击左侧圆点选择导出。</view>
+    <view wx:if="{{exportMode}}" class="muted selected-note">已选 {{selectedReceiptIds.length}} 张。点击左侧圆点选择导出。</view>
 
     <view wx:if="{{!receipts.length}}" class="empty">暂无账单。</view>
     <view wx:else class="simple-list">
       <view wx:for="{{receipts}}" wx:key="id" class="simple-card">
         <view class="row-between">
-          <view class="select-dot {{item.selected ? 'select-dot-on' : ''}}" data-id="{{item.id}}" catchtap="toggleReceiptSelect">{{item.selected ? '✓' : ''}}</view>
+          <view wx:if="{{exportMode}}" class="select-dot {{item.selected ? 'select-dot-on' : ''}}" data-id="{{item.id}}" catchtap="toggleReceiptSelect">{{item.selected ? '✓' : ''}}</view>
           <view class="supplier" data-id="{{item.id}}" bindtap="openReceipt">{{item.supplierText}}</view>
           <text class="badge badge-{{item.tone}}">{{item.statusText}}</text>
         </view>

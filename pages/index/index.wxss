@@ -23,6 +23,20 @@
   line-height: 64rpx;
 }
 
+.small-export-select {
+  width: 168rpx;
+  height: 64rpx;
+  padding: 0;
+  line-height: 64rpx;
+}
+
+.small-cancel {
+  width: 112rpx;
+  height: 64rpx;
+  padding: 0;
+  line-height: 64rpx;
+}
+
 .selected-note {
   margin: 12rpx 0 18rpx;
 }

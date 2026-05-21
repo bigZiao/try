@@ -5,6 +5,7 @@ Page({
   data: {
     receipts: [],
     selectedReceiptIds: [],
+    exportMode: false,
     loadingReceipts: false,
     exportingSelected: false,
     uploading: false,
@@ -114,6 +115,7 @@ Page({
   },
 
   toggleReceiptSelect(event) {
+    if (!this.data.exportMode) return
     const receiptId = String(event.currentTarget.dataset.id)
     const selectedMap = {}
     this.data.selectedReceiptIds.forEach((id) => {
@@ -130,6 +132,21 @@ Page({
       receipts: this.data.receipts.map((receipt) => ({
         ...receipt,
         selected: Boolean(selectedMap[String(receipt.id)])
+      }))
+    })
+  },
+
+  startExportSelect() {
+    this.setData({ exportMode: true })
+  },
+
+  cancelExportSelect() {
+    this.setData({
+      exportMode: false,
+      selectedReceiptIds: [],
+      receipts: this.data.receipts.map((receipt) => ({
+        ...receipt,
+        selected: false
       }))
     })
   },
