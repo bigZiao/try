@@ -88,6 +88,17 @@ Owner uploads multiple receipt photos
 -> export batch Excel
 ```
 
+When first-round DeepSeek returns `structured_json.need_review=true` or the first rule check finds errors, the backend automatically runs a vision cross-check before sending the receipt to manual review:
+
+```text
+No need_review and no first-round rule errors -> confirmed
+Line A: DeepSeek first round -> DeepSeek second-round recheck
+Line B: image + OCR -> vision first round -> DeepSeek second-round recheck
+Compare only item fields: style_no, product_name, color, size, sizes, quantity, unit_price, subtotal
+Matched and both lines have no rule errors -> confirmed
+Different -> need_review with final_json.cross_check.diffs
+```
+
 MVP concurrency can be tuned with:
 
 ```env

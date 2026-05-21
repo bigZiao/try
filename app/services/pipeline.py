@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
@@ -22,6 +23,7 @@ from app.models.user import User
 from app.services.normalizer import ReceiptNormalizer
 from app.services.image_preprocessor import ImagePreprocessService
 from app.services.call_logger import ProviderCallLogger
+from app.services.cross_check import ReceiptCrossCheckService
 from app.services.rule_engine import RuleEngine
 from app.services.storage import ImageStorageService
 
@@ -49,6 +51,7 @@ class ReceiptPipelineService:
         self.vision_llm = get_vision_llm_adapter()
         self.rules = RuleEngine()
         self.normalizer = ReceiptNormalizer()
+        self.cross_check = ReceiptCrossCheckService()
         self.image_preprocessor = ImagePreprocessService()
         self.settings = get_settings()
 
@@ -182,7 +185,17 @@ class ReceiptPipelineService:
                     ),
                 )
             )
-            result = await self._run_rule_and_correction(structured_json, receipt.ocr_json, receipt.id)
+            first_errors = self.rules.validate(structured_json)
+            if structured_json.get("need_review") is True or first_errors:
+                result = await self._run_vision_cross_check(
+                    receipt=receipt,
+                    structured_json=structured_json,
+                    ocr_json=receipt.ocr_json,
+                    image_path=ocr_image_path,
+                    logger=logger,
+                )
+            else:
+                result = await self._run_rule_and_correction(structured_json, receipt.ocr_json, receipt.id)
             receipt.structured_json = result["structured_json"]
             receipt.corrected_json = result["corrected_json"]
             receipt.final_json = result["final_json"]
@@ -312,11 +325,13 @@ class ReceiptPipelineService:
         structured_json: dict[str, Any],
         ocr_json: dict[str, Any],
         receipt_id: int | None = None,
+        forced_errors: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         normalized_structured = self.normalizer.normalize(structured_json)
         first_errors = self.rules.validate(normalized_structured)
+        correction_errors = first_errors or forced_errors or []
 
-        if not first_errors:
+        if not correction_errors:
             return {
                 "structured_json": normalized_structured,
                 "corrected_json": None,
@@ -335,7 +350,7 @@ class ReceiptPipelineService:
                     self.settings.llm_concurrency,
                     lambda: self.llm.correct_receipt(
                         normalized_structured,
-                        first_errors,
+                        correction_errors,
                         ocr_json,
                     ),
                 ),
@@ -350,6 +365,114 @@ class ReceiptPipelineService:
             "validation_errors": second_errors,
             "status": self._status_for_validated_json(final_json, second_errors),
         }
+
+    async def _run_vision_cross_check(
+        self,
+        receipt: Receipt,
+        structured_json: dict[str, Any],
+        ocr_json: dict[str, Any],
+        image_path: Path,
+        logger: ProviderCallLogger,
+    ) -> dict[str, Any]:
+        review_errors = self._model_review_errors(structured_json)
+        text_result = await self._run_rule_and_correction(
+            structured_json,
+            ocr_json,
+            receipt.id,
+            forced_errors=review_errors,
+        )
+
+        receipt.status = "vision_processing"
+        self.db.commit()
+        vision_structured_json = self.normalizer.normalize(
+            await logger.record(
+                provider=self.settings.vision_llm_provider,
+                stage="vision_first_round",
+                model=self.settings.vision_llm_model,
+                factory=lambda: self._limited(
+                    "vision_llm",
+                    self.settings.vision_llm_concurrency,
+                    lambda: self.vision_llm.structure_receipt(
+                        image_path=image_path,
+                        ocr_json=ocr_json,
+                        reason="DeepSeek first round returned need_review=true; run vision cross-check.",
+                    ),
+                ),
+                metadata={"image_path": str(image_path), "trigger": "structured_json.need_review"},
+            )
+        )
+        vision_result = await self._run_rule_and_correction(
+            vision_structured_json,
+            ocr_json,
+            receipt.id,
+            forced_errors=self._vision_cross_check_errors(vision_structured_json),
+        )
+
+        comparison = self.cross_check.compare_items(text_result["final_json"], vision_result["final_json"])
+        text_errors = text_result.get("validation_errors") or []
+        vision_errors = vision_result.get("validation_errors") or []
+        if comparison["matched"] and not text_errors and not vision_errors:
+            final_json = text_result["final_json"]
+            final_json["need_review"] = False
+            warnings = final_json.get("warnings") if isinstance(final_json.get("warnings"), list) else []
+            final_json["warnings"] = [*warnings, "vision_cross_check_matched"]
+            return {
+                "structured_json": structured_json,
+                "corrected_json": text_result["corrected_json"],
+                "final_json": final_json,
+                "validation_errors": [],
+                "status": "confirmed",
+            }
+
+        text_final_json = copy.deepcopy(text_result["final_json"])
+        vision_final_json = copy.deepcopy(vision_result["final_json"])
+        final_json = copy.deepcopy(text_result["final_json"])
+        final_json["need_review"] = True
+        final_json["cross_check"] = {
+            "matched": False,
+            "compare_fields": self.cross_check.COMPARE_FIELDS,
+            "diffs": comparison["diffs"],
+            "text_validation_errors": text_errors,
+            "vision_validation_errors": vision_errors,
+            "text_final_json": text_final_json,
+            "vision_final_json": vision_final_json,
+        }
+        return {
+            "structured_json": structured_json,
+            "corrected_json": text_result["corrected_json"],
+            "final_json": final_json,
+            "validation_errors": comparison["diffs"],
+            "status": "need_review",
+        }
+
+    def _model_review_errors(self, structured_json: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            {
+                "code": "MODEL_NEED_REVIEW",
+                "field": "structured_json.need_review",
+                "message": "First-round DeepSeek result requested review; re-check uncertain receipt fields.",
+                "warnings": structured_json.get("warnings") if isinstance(structured_json.get("warnings"), list) else [],
+                "confidence": structured_json.get("confidence"),
+                "confidence_reason": structured_json.get("confidence_reason"),
+            }
+        ]
+
+    def _vision_cross_check_errors(self, vision_structured_json: dict[str, Any]) -> list[dict[str, Any]]:
+        rule_errors = self.rules.validate(vision_structured_json)
+        if rule_errors:
+            return rule_errors
+        return [
+            {
+                "code": "VISION_CROSS_CHECK",
+                "field": "vision_structured_json",
+                "message": "Vision first-round result must be re-checked by DeepSeek before cross-line comparison.",
+                "warnings": vision_structured_json.get("warnings")
+                if isinstance(vision_structured_json.get("warnings"), list)
+                else [],
+                "confidence": vision_structured_json.get("confidence"),
+                "confidence_reason": vision_structured_json.get("confidence_reason"),
+            }
+        ]
 
     def confirm(self, receipt_id: int, final_json: dict[str, Any]) -> Receipt:
         receipt = self.db.get(Receipt, receipt_id)

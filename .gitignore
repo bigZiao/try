@@ -1,8 +1,42 @@
+# Python bytecode/cache
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
 .venv/
 venv/
+env/
+
+# Local environment and secrets
 .env
+.env.*
+!.env.example
 miyao.env
+*.key
+*.pem
+
+# Runtime data and user uploads
 data/
 uploads/
+
+# Local SQLite databases and generated exports
+*.db
+*.sqlite
+*.sqlite3
+*.xlsx
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
